@@ -1,0 +1,63 @@
+name: Build Windows Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build Standalone Executable with PyInstaller
+        run: |
+          pyinstaller --noconsole --onefile --icon=assets/icon.ico --add-data="assets;assets" --name="Wallhaven-Desktop" main.py
+
+      - name: Compile Windows Installer (Inno Setup)
+        run: |
+          iscc windows/installer.iss
+
+      - name: Create Portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/Wallhaven-Desktop.exe, assets, LICENSE, README.md -DestinationPath dist/Wallhaven-Desktop-Portable.zip
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wallhaven-Desktop-Windows
+          path: |
+            dist/Wallhaven-Desktop-Setup.exe
+            dist/Wallhaven-Desktop.exe
+            dist/Wallhaven-Desktop-Portable.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          files: |
+            dist/Wallhaven-Desktop-Setup.exe
+            dist/Wallhaven-Desktop-Portable.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true

@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Tuple
 
@@ -8,8 +9,11 @@ from typing import Tuple
 def detect_wallpaper_command() -> list[str]:
     """
     Detects the best wallpaper setter command for the current environment.
-    Hyprland with quickshell/illogical-impulse is prioritized for this Arch system.
+    Supports Windows (native API) and Linux (Hyprland/quickshell, swww, feh, etc.).
     """
+    if sys.platform == "win32":
+        return ["Nativní Windows API (SystemParametersInfoW)"]
+
     # 1. Quickshell / illogical-impulse switchwall.sh (used by Hyprland dots)
     qs_script = Path.home() / ".config/quickshell/ii/scripts/colors/switchwall.sh"
     if qs_script.exists() and os.access(qs_script, os.X_OK):
@@ -74,7 +78,26 @@ def set_desktop_wallpaper(file_path: str, custom_cmd: str = "") -> Tuple[bool, s
         except Exception as e:
             return False, str(e)
 
-    # Automatic detection
+    # Windows native API
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            SPI_SETDESKWALLPAPER = 20
+            SPIF_UPDATEINIFILE = 0x01
+            SPIF_SENDCHANGE = 0x02
+            res = ctypes.windll.user32.SystemParametersInfoW(
+                SPI_SETDESKWALLPAPER,
+                0,
+                abs_path,
+                SPIF_UPDATEINIFILE | SPIF_SENDCHANGE,
+            )
+            if res:
+                return True, "Tapeta byla úspěšně nastavena."
+            return False, "Volání Windows API (SystemParametersInfoW) selhalo."
+        except Exception as e:
+            return False, str(e)
+
+    # Linux Automatic detection
     cmd_template = detect_wallpaper_command()
     if not cmd_template:
         return False, "Nebyl nalezen žádný podporovaný nástroj pro nastavení tapety."
@@ -109,7 +132,7 @@ def set_desktop_wallpaper(file_path: str, custom_cmd: str = "") -> Tuple[bool, s
 
 
 def _send_notification(title: str, msg: str):
-    if shutil.which("notify-send"):
+    if sys.platform != "win32" and shutil.which("notify-send"):
         try:
             subprocess.run(
                 ["notify-send", "-a", "Wallhaven Desktop", title, msg],

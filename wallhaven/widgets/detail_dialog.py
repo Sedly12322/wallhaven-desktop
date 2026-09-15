@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QUrl
 from PyQt6.QtGui import QPixmap, QDesktopServices, QColor
@@ -425,4 +426,7 @@ class DetailDialog(QDialog):
     def _on_open_folder(self):
         if self.saved_path and os.path.exists(self.saved_path):
             folder = os.path.dirname(self.saved_path)
-            QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+            if sys.platform == "win32":
+                os.startfile(folder)
+            else:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(folder))

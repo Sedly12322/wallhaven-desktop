@@ -1,8 +1,13 @@
 import json
 import os
+import sys
 from pathlib import Path
 
-CONFIG_DIR = Path.home() / ".config" / "wallhaven-desktop"
+if sys.platform == "win32":
+    appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
+    CONFIG_DIR = Path(appdata) / "wallhaven-desktop"
+else:
+    CONFIG_DIR = Path.home() / ".config" / "wallhaven-desktop"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 

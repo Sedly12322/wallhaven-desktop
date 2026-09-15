@@ -1,10 +1,15 @@
 import hashlib
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 from PyQt6.QtGui import QPixmap
 
-CACHE_DIR = Path.home() / ".cache" / "wallhaven-desktop"
+if sys.platform == "win32":
+    localapp = os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
+    CACHE_DIR = Path(localapp) / "wallhaven-desktop"
+else:
+    CACHE_DIR = Path.home() / ".cache" / "wallhaven-desktop"
 THUMB_CACHE_DIR = CACHE_DIR / "thumbnails"
 FULL_CACHE_DIR = CACHE_DIR / "previews"
 
