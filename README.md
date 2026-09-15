@@ -106,12 +106,21 @@ Ready-to-use binaries are available on the [**GitHub Releases**](https://github.
   - **Resolutions:** Any, 1080p, 1440p (2K), 4K UHD, 8K UHD.
   - **Color Palette (🎨 Colors):** Filter wallpapers by dominant color using 18 official Wallhaven shades.
 
+- **🎯 osu! Seasonal Wallpapers (Official Contest Art):**
+  - Dedicated tab featuring **1,699+ official seasonal contest wallpapers** directly from osu! fanart competitions (2020–2026).
+  - Works offline instantly with zero API keys or authentication required.
+  - **Filter by Season:** Spring 2026, Winter 2025, Halloween 2025, Summer 2025, and all past contests.
+  - **Theme Chips:** 🌸 Spring, ☀️ Summer, 🍂 Autumn, ❄️ Winter, and 🎃 Halloween.
+  - **Sorting:** 🏆 Top Voted (Official Contest Winners), 🕒 Newest Season, and 🎲 Random.
+  - Search by artist username, illustration title, or season name.
+  - Full metadata with artist credits, vote counts, winner badges, and direct links to official contest pages.
+
 - **🔍 Full Detail Modal:**
   - Click any card to inspect the full preview image, exact dimensions, ratio, file size, format, views, and favorites count.
   - **Clickable Tags:** Click any tag pill to instantly search for similar wallpapers.
   - Dominant color swatches.
   - One-click **„Set as wallpaper now“** button.
-  - Direct link to open the wallpaper page on Wallhaven.cc.
+  - Direct link to open the wallpaper page on Wallhaven.cc or osu!.
 
 - **💾 Safe & Flexible Downloads:**
   - Prompt save dialog allowing you to choose destination and filename (pre-filled with suggested names).

@@ -7,12 +7,30 @@ TRANSLATIONS = {
     "en": {
         # App & Header
         "app_title": "Wallhaven Desktop",
+        "tab_wallhaven": "🌌 Wallhaven",
+        "tab_osu": "🎯 osu! Seasonal",
         "search_placeholder": "Search wallpapers... (e.g. cyberpunk, anime, nature, landscape)",
+        "osu_search_placeholder": "Search osu! wallpapers by artist, title, season...",
         "search_button": "Search",
         "colors_button": "🎨 Colors",
         "auto_wallpaper": "🖼️ Auto-Wallpaper",
         "auto_wallpaper_tip": "Automatically set downloaded wallpaper to your desktop background",
         "settings_button": "⚙ Settings",
+
+        # osu! Seasonal Filters
+        "season_label": "Season:",
+        "season_all": "All Seasons ({count})",
+        "theme_label": "Theme:",
+        "theme_all": "All Themes",
+        "theme_spring": "🌸 Spring",
+        "theme_summer": "☀️ Summer",
+        "theme_autumn": "🍂 Autumn",
+        "theme_winter": "❄️ Winter",
+        "theme_halloween": "🎃 Halloween",
+        "sort_osu_votes": "🏆 Top Voted (Winners)",
+        "sort_osu_newest": "🕒 Newest Season",
+        "sort_osu_random": "🎲 Random",
+        "osu_total_found": "Found: {total} osu! seasonal wallpapers",
         
         # Filter Bar
         "categories_label": "Categories:",
@@ -173,12 +191,30 @@ TRANSLATIONS = {
     "cs": {
         # App & Header
         "app_title": "Wallhaven Desktop",
+        "tab_wallhaven": "🌌 Wallhaven",
+        "tab_osu": "🎯 osu! Sezóny",
         "search_placeholder": "Hledat tapety... (např. cyberpunk, anime, příroda, minimal)",
+        "osu_search_placeholder": "Hledat v osu! tapetách podle autora, názvu, sezóny...",
         "search_button": "Hledat",
         "colors_button": "🎨 Barvy",
         "auto_wallpaper": "🖼️ Auto-tapeta",
         "auto_wallpaper_tip": "Při stažení automaticky nastavit tapetu na plochu",
         "settings_button": "⚙ Nastavení",
+
+        # osu! Seasonal Filters
+        "season_label": "Sezóna:",
+        "season_all": "Všechny sezóny ({count})",
+        "theme_label": "Téma:",
+        "theme_all": "Všechna témata",
+        "theme_spring": "🌸 Jaro",
+        "theme_summer": "☀️ Léto",
+        "theme_autumn": "🍂 Podzim",
+        "theme_winter": "❄️ Zima",
+        "theme_halloween": "🎃 Halloween",
+        "sort_osu_votes": "🏆 Nejvíce hlasů (Vítězové)",
+        "sort_osu_newest": "🕒 Nejnovější sezóny",
+        "sort_osu_random": "🎲 Náhodné",
+        "osu_total_found": "Nalezeno: {total} osu! sezónních tapet",
         
         # Filter Bar
         "categories_label": "Kategorie:",

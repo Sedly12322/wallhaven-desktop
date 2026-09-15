@@ -64,12 +64,15 @@ class WallpaperItem:
 
     @property
     def human_file_size(self) -> str:
+        if not self.file_size or self.file_size <= 0:
+            return "N/A"
         size = self.file_size
         for unit in ["B", "KB", "MB", "GB"]:
             if size < 1024:
                 return f"{size:.1f} {unit}"
             size /= 1024
         return f"{size:.1f} TB"
+
 
 
 @dataclass

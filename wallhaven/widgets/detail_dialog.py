@@ -80,7 +80,10 @@ class DetailDialog(QDialog):
         self.download_worker: DownloadWorker | None = None
         self.saved_path: str = ""
 
-        self.setWindowTitle(tr("detail_title", id=item.id, res=item.resolution))
+        if getattr(self.item, "_osu_meta", None):
+            self.setWindowTitle(f"osu! {self.item._osu_meta.get('season', '')} - #{self.item.id} ({self.item.resolution})")
+        else:
+            self.setWindowTitle(tr("detail_title", id=item.id, res=item.resolution))
         self.resize(1100, 720)
         self.setMinimumSize(850, 550)
 
@@ -128,11 +131,16 @@ class DetailDialog(QDialog):
 
         # 1. Wallpaper ID and Wallhaven link
         id_row = QHBoxLayout()
-        id_lbl = QLabel(f"<b>#{self.item.id}</b>")
-        id_lbl.setStyleSheet("font-size: 16px; color: #ffffff;")
-        id_row.addWidget(id_lbl)
-
-        id_row.addStretch()
+        if getattr(self.item, "_osu_meta", None):
+            meta = self.item._osu_meta
+            title = meta.get("title", f"#{self.item.id}")
+            artist = meta.get("artist", "")
+            id_lbl = QLabel(f"<b>{title}</b><br><span style='color: #a5b4fc; font-size: 11px;'>by {artist}</span>")
+            id_lbl.setWordWrap(True)
+        else:
+            id_lbl = QLabel(f"<b>#{self.item.id}</b>")
+        id_lbl.setStyleSheet("font-size: 15px; color: #ffffff;")
+        id_row.addWidget(id_lbl, stretch=1)
 
         self.open_web_btn = QPushButton(tr("detail_open_web"))
         self.open_web_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
@@ -353,7 +361,10 @@ class DetailDialog(QDialog):
         main_layout.addWidget(sidebar_scroll)
 
     def retranslate_ui(self):
-        self.setWindowTitle(tr("detail_title", id=self.item.id, res=self.item.resolution))
+        if getattr(self.item, "_osu_meta", None):
+            self.setWindowTitle(f"osu! {self.item._osu_meta.get('season', '')} - #{self.item.id} ({self.item.resolution})")
+        else:
+            self.setWindowTitle(tr("detail_title", id=self.item.id, res=self.item.resolution))
         self.open_web_btn.setText(tr("detail_open_web"))
         if not self.saved_path:
             self.dl_btn.setText(tr("download_button"))
@@ -431,6 +442,9 @@ class DetailDialog(QDialog):
             self._update_preview(pm)
 
     def _fetch_full_details(self):
+        if getattr(self.item, "_osu_meta", None) or (self.item.tags and not self.item.id.isdigit()):
+            self._on_details_fetched(self.item)
+            return
         self.fetch_worker = DetailFetchWorker(self.item.id)
         self.fetch_worker.finished.connect(self._on_details_fetched)
         self.fetch_worker.failed.connect(lambda err: self.tags_status_lbl.setText(tr("tags_unavailable")))
@@ -483,7 +497,14 @@ class DetailDialog(QDialog):
 
     def _on_download_clicked(self):
         ext = os.path.splitext(self.item.path)[1] or ".jpg"
-        suggested_name = f"wallhaven-{self.item.id}{ext}"
+        if getattr(self.item, "_osu_meta", None):
+            meta = self.item._osu_meta
+            artist = "".join(c for c in meta.get("artist", "artist") if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
+            title = "".join(c for c in meta.get("title", self.item.id) if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
+            season = "".join(c for c in meta.get("season", "osu") if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
+            suggested_name = f"osu-{season}-{artist}-{title}{ext}"
+        else:
+            suggested_name = f"wallhaven-{self.item.id}{ext}"
         default_dir = Path(config.default_download_dir)
         default_dir.mkdir(parents=True, exist_ok=True)
         initial_path = str(default_dir / suggested_name)

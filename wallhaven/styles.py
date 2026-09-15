@@ -142,6 +142,52 @@ QPushButton#sketchyChip:checked {
     font-weight: bold;
 }
 
+/* Navigation Tabs */
+QPushButton#navTab {
+    background-color: #232630;
+    color: #94a3b8;
+    border: 1px solid #363a47;
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton#navTab:hover {
+    background-color: #2e3342;
+    border-color: #6366f1;
+    color: #ffffff;
+}
+
+QPushButton#navTab:checked {
+    background-color: #4f46e5;
+    border: 1px solid #6366f1;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+QPushButton#themeChip {
+    background-color: #232630;
+    border: 1px solid #363a47;
+    border-radius: 14px;
+    padding: 5px 12px;
+    font-size: 12px;
+    color: #cbd5e1;
+}
+
+QPushButton#themeChip:hover {
+    border-color: #ec4899;
+    background-color: #2a2e3a;
+    color: #ffffff;
+}
+
+QPushButton#themeChip:checked {
+    background-color: #831843;
+    border: 1px solid #ec4899;
+    color: #fce7f3;
+    font-weight: bold;
+}
+
 /* ScrollArea */
 QScrollArea {
     border: none;

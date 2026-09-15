@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wallhaven-desktop"
-version = "1.1.1"
+version = "1.2.0"
 authors = [
   { name = "Sedly12322" }
 ]
@@ -36,3 +36,7 @@ Issues = "https://github.com/Sedly12322/wallhaven-desktop/issues"
 
 [tool.setuptools.packages.find]
 include = ["wallhaven*"]
+
+[tool.setuptools.package-data]
+"wallhaven" = ["data/*.json"]
+

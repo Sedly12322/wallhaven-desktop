@@ -63,7 +63,15 @@ class WallpaperCard(QFrame):
         info_row.addWidget(self.res_badge)
 
         # Category badge
-        cat_badge = QLabel(self.item.category.capitalize())
+        if getattr(self.item, "_osu_meta", None):
+            meta = self.item._osu_meta
+            cat_badge = QLabel(meta.get("theme") or "osu!")
+            rank = meta.get("rank", 0)
+            if 0 < rank <= 15:
+                cat_badge.setToolTip(f"Winner #{rank} - {meta.get('season', '')}")
+            self.setToolTip(f"{meta.get('title', '')}\nArtist: {meta.get('artist', '')}\nSeason: {meta.get('season', '')}\nVotes: {meta.get('votes', 0):,}")
+        else:
+            cat_badge = QLabel(self.item.category.capitalize())
         cat_badge.setObjectName("categoryBadge")
         info_row.addWidget(cat_badge)
 

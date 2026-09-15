@@ -39,13 +39,27 @@ class ImageLoadTask(QRunnable):
                 cache.save_data(self.url, data, self.is_thumb)
                 pm = QPixmap()
                 if pm.loadFromData(data):
-                    self.signals.finished.emit(self.url, pm)
+                    try:
+                        self.signals.finished.emit(self.url, pm)
+                    except RuntimeError:
+                        pass
                 else:
-                    self.signals.error.emit(self.url, "Nepodařilo se dekódovat obrázek")
+                    try:
+                        self.signals.error.emit(self.url, "Failed to decode image")
+                    except RuntimeError:
+                        pass
             else:
-                self.signals.error.emit(self.url, f"HTTP {resp.status_code}")
+                try:
+                    self.signals.error.emit(self.url, f"HTTP {resp.status_code}")
+                except RuntimeError:
+                    pass
+        except RuntimeError:
+            pass
         except Exception as e:
-            self.signals.error.emit(self.url, str(e))
+            try:
+                self.signals.error.emit(self.url, str(e))
+            except Exception:
+                pass
 
 
 class AsyncImageLoader(QObject):

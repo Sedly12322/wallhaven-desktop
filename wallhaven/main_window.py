@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QApplication,
 )
 from wallhaven.api import WallpaperItem, SearchResult, api
+from wallhaven.osu import osu_manager
 from wallhaven.config import config
 from wallhaven.i18n import tr, i18n
 from wallhaven.widgets.grid_widget import WallpaperGridWidget
@@ -30,19 +31,37 @@ from wallhaven.wallpaper import set_desktop_wallpaper
 
 
 class SearchWorker(QThread):
-    finished = pyqtSignal(SearchResult)
-    failed = pyqtSignal(str)
+    finished = pyqtSignal(int, SearchResult)
+    failed = pyqtSignal(int, str)
 
-    def __init__(self, **kwargs):
+    def __init__(self, search_id: int, **kwargs):
         super().__init__()
+        self.search_id = search_id
         self.kwargs = kwargs
 
     def run(self):
         try:
             res = api.search(**self.kwargs)
-            self.finished.emit(res)
+            self.finished.emit(self.search_id, res)
         except Exception as e:
-            self.failed.emit(str(e))
+            self.failed.emit(self.search_id, str(e))
+
+
+class OsuSearchWorker(QThread):
+    finished = pyqtSignal(int, SearchResult)
+    failed = pyqtSignal(int, str)
+
+    def __init__(self, search_id: int, **kwargs):
+        super().__init__()
+        self.search_id = search_id
+        self.kwargs = kwargs
+
+    def run(self):
+        try:
+            res = osu_manager.search(**self.kwargs)
+            self.finished.emit(self.search_id, res)
+        except Exception as e:
+            self.failed.emit(self.search_id, str(e))
 
 
 class MainWindow(QMainWindow):
@@ -51,11 +70,15 @@ class MainWindow(QMainWindow):
         self.resize(1280, 800)
         self.setMinimumSize(900, 600)
 
+        self.current_mode = "wallhaven"
+        self.osu_theme = "all"
+        self.current_search_id = 0
+
         self.current_page = 1
         self.last_page = 1
         self.total_count = 0
         self.current_color = ""
-        self.active_search_worker: SearchWorker | None = None
+        self.active_search_worker: SearchWorker | OsuSearchWorker | None = None
         self.quick_download_worker: DownloadWorker | None = None
 
         self._init_ui()
@@ -76,9 +99,27 @@ class MainWindow(QMainWindow):
         h_layout.setContentsMargins(16, 8, 16, 8)
         h_layout.setSpacing(12)
 
-        logo = QLabel("🌌 <b>Wallhaven</b>")
-        logo.setStyleSheet("font-size: 18px; color: #818cf8; letter-spacing: 0.5px;")
-        h_layout.addWidget(logo)
+        # Navigation Mode Tabs: [ Wallhaven ] [ osu! Seasonal ]
+        tabs_layout = QHBoxLayout()
+        tabs_layout.setSpacing(6)
+
+        self.tab_wallhaven = QPushButton()
+        self.tab_wallhaven.setObjectName("navTab")
+        self.tab_wallhaven.setCheckable(True)
+        self.tab_wallhaven.setChecked(True)
+        self.tab_wallhaven.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.tab_wallhaven.clicked.connect(lambda: self._set_mode("wallhaven"))
+        tabs_layout.addWidget(self.tab_wallhaven)
+
+        self.tab_osu = QPushButton()
+        self.tab_osu.setObjectName("navTab")
+        self.tab_osu.setCheckable(True)
+        self.tab_osu.setChecked(False)
+        self.tab_osu.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.tab_osu.clicked.connect(lambda: self._set_mode("osu"))
+        tabs_layout.addWidget(self.tab_osu)
+
+        h_layout.addLayout(tabs_layout)
 
         # Search box
         self.search_input = QLineEdit()
@@ -91,7 +132,7 @@ class MainWindow(QMainWindow):
         self.search_btn.clicked.connect(self._on_search_triggered)
         h_layout.addWidget(self.search_btn)
 
-        # Toggle Color Bar button
+        # Toggle Color Bar button (Wallhaven only)
         self.color_toggle_btn = QPushButton()
         self.color_toggle_btn.setCheckable(True)
         self.color_toggle_btn.clicked.connect(self._toggle_color_bar)
@@ -111,10 +152,10 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(header)
 
-        # 2. Filter Bar
-        filter_bar = QFrame()
-        filter_bar.setObjectName("filterPanel")
-        f_layout = QHBoxLayout(filter_bar)
+        # 2A. Wallhaven Filter Bar
+        self.wallhaven_filter_bar = QFrame()
+        self.wallhaven_filter_bar.setObjectName("filterPanel")
+        f_layout = QHBoxLayout(self.wallhaven_filter_bar)
         f_layout.setContentsMargins(16, 6, 16, 6)
         f_layout.setSpacing(10)
 
@@ -199,9 +240,66 @@ class MainWindow(QMainWindow):
         f_layout.addWidget(self.res_combo)
 
         f_layout.addStretch()
-        main_layout.addWidget(filter_bar)
+        main_layout.addWidget(self.wallhaven_filter_bar)
 
-        # 3. Color Bar (Collapsible)
+        # 2B. osu! Seasonal Filter Bar
+        self.osu_filter_bar = QFrame()
+        self.osu_filter_bar.setObjectName("filterPanel")
+        self.osu_filter_bar.setVisible(False)
+        osu_layout = QHBoxLayout(self.osu_filter_bar)
+        osu_layout.setContentsMargins(16, 6, 16, 6)
+        osu_layout.setSpacing(10)
+
+        # Season selector
+        self.osu_season_lbl = QLabel()
+        self.osu_season_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        osu_layout.addWidget(self.osu_season_lbl)
+
+        self.osu_season_combo = QComboBox()
+        self.osu_season_combo.currentIndexChanged.connect(self._on_osu_filter_changed)
+        osu_layout.addWidget(self.osu_season_combo)
+
+        osu_layout.addSpacing(8)
+
+        # Theme chips
+        self.osu_theme_lbl = QLabel()
+        self.osu_theme_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        osu_layout.addWidget(self.osu_theme_lbl)
+
+        self.theme_chips: dict[str, QPushButton] = {}
+        themes = [
+            ("all", "theme_all"),
+            ("Spring", "theme_spring"),
+            ("Summer", "theme_summer"),
+            ("Autumn", "theme_autumn"),
+            ("Winter", "theme_winter"),
+            ("Halloween", "theme_halloween"),
+        ]
+        for key, tr_key in themes:
+            btn = QPushButton()
+            btn.setObjectName("themeChip")
+            btn.setCheckable(True)
+            if key == "all":
+                btn.setChecked(True)
+            btn.clicked.connect(lambda checked, k=key: self._on_osu_theme_clicked(k))
+            osu_layout.addWidget(btn)
+            self.theme_chips[key] = btn
+
+        osu_layout.addSpacing(8)
+
+        # Sorting combo
+        self.osu_sort_lbl = QLabel()
+        self.osu_sort_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        osu_layout.addWidget(self.osu_sort_lbl)
+
+        self.osu_sort_combo = QComboBox()
+        self.osu_sort_combo.currentIndexChanged.connect(self._on_osu_filter_changed)
+        osu_layout.addWidget(self.osu_sort_combo)
+
+        osu_layout.addStretch()
+        main_layout.addWidget(self.osu_filter_bar)
+
+        # 3. Color Bar (Collapsible, Wallhaven only)
         self.color_bar = ColorBar()
         self.color_bar.setVisible(False)
         self.color_bar.color_changed.connect(self._on_color_changed)
@@ -322,25 +420,78 @@ class MainWindow(QMainWindow):
             (tr("res_8k"), "7680x4320"),
         ])
 
+    def _retranslate_osu_combos(self):
+        # 1. Seasons
+        cur_season = self.osu_season_combo.currentData()
+        self.osu_season_combo.blockSignals(True)
+        self.osu_season_combo.clear()
+        self.osu_season_combo.addItem(tr("season_all", count=osu_manager.total_count), "all")
+        for s in osu_manager.get_seasons():
+            self.osu_season_combo.addItem(s, s)
+        if cur_season is not None:
+            idx = self.osu_season_combo.findData(cur_season)
+            if idx >= 0:
+                self.osu_season_combo.setCurrentIndex(idx)
+        self.osu_season_combo.blockSignals(False)
+
+        # 2. Sorting
+        cur_sort = self.osu_sort_combo.currentData()
+        self.osu_sort_combo.blockSignals(True)
+        self.osu_sort_combo.clear()
+        self.osu_sort_combo.addItem(tr("sort_osu_votes"), "votes")
+        self.osu_sort_combo.addItem(tr("sort_osu_newest"), "newest")
+        self.osu_sort_combo.addItem(tr("sort_osu_random"), "random")
+        if cur_sort is not None:
+            idx = self.osu_sort_combo.findData(cur_sort)
+            if idx >= 0:
+                self.osu_sort_combo.setCurrentIndex(idx)
+        self.osu_sort_combo.blockSignals(False)
+
+        # 3. Theme Chips
+        theme_keys = {
+            "all": "theme_all",
+            "Spring": "theme_spring",
+            "Summer": "theme_summer",
+            "Autumn": "theme_autumn",
+            "Winter": "theme_winter",
+            "Halloween": "theme_halloween",
+        }
+        for key, tr_key in theme_keys.items():
+            if key in self.theme_chips:
+                self.theme_chips[key].setText(tr(tr_key))
+
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
-        self.search_input.setPlaceholderText(tr("search_placeholder"))
+        self.tab_wallhaven.setText(tr("tab_wallhaven"))
+        self.tab_osu.setText(tr("tab_osu"))
+
+        if self.current_mode == "osu":
+            self.search_input.setPlaceholderText(tr("osu_search_placeholder"))
+        else:
+            self.search_input.setPlaceholderText(tr("search_placeholder"))
+
         self.search_btn.setText(tr("search_button"))
         self.color_toggle_btn.setText(tr("colors_button"))
         self.auto_wall_btn.setText(tr("auto_wallpaper"))
         self.auto_wall_btn.setToolTip(tr("auto_wallpaper_tip"))
         self.settings_btn.setText(tr("settings_button"))
 
+        # Wallhaven filter labels
         self.cat_lbl.setText(tr("categories_label"))
         self.cat_general.setText(tr("cat_general"))
         self.cat_anime.setText(tr("cat_anime"))
         self.cat_people.setText(tr("cat_people"))
-
         self.pur_lbl.setText(tr("purity_label"))
         self.sort_lbl.setText(tr("sorting_label"))
-
         self._retranslate_combos()
 
+        # osu! filter labels
+        self.osu_season_lbl.setText(tr("season_label"))
+        self.osu_theme_lbl.setText(tr("theme_label"))
+        self.osu_sort_lbl.setText(tr("sorting_label"))
+        self._retranslate_osu_combos()
+
+        # Pagination
         self.first_btn.setText(tr("first_page"))
         self.prev_btn.setText(tr("prev_page"))
         self.page_info_lbl.setText(tr("page_info", current=self.current_page, last=self.last_page))
@@ -348,7 +499,49 @@ class MainWindow(QMainWindow):
         self.last_btn.setText(tr("last_page"))
         self.goto_lbl.setText(tr("goto_page"))
         self.goto_btn.setText(tr("goto_btn"))
-        self.total_count_lbl.setText(tr("total_found", total=f"{self.total_count:,}"))
+
+        if self.current_mode == "osu":
+            self.total_count_lbl.setText(tr("osu_total_found", total=f"{self.total_count:,}"))
+        else:
+            self.total_count_lbl.setText(tr("total_found", total=f"{self.total_count:,}"))
+
+    def _set_mode(self, mode: str):
+        if mode == self.current_mode:
+            self.tab_wallhaven.setChecked(mode == "wallhaven")
+            self.tab_osu.setChecked(mode == "osu")
+            return
+
+        self.current_mode = mode
+        self.tab_wallhaven.setChecked(mode == "wallhaven")
+        self.tab_osu.setChecked(mode == "osu")
+
+        is_wall = (mode == "wallhaven")
+        self.wallhaven_filter_bar.setVisible(is_wall)
+        self.osu_filter_bar.setVisible(not is_wall)
+        self.color_toggle_btn.setVisible(is_wall)
+        if not is_wall:
+            self.color_bar.setVisible(False)
+        else:
+            self.color_bar.setVisible(self.color_toggle_btn.isChecked())
+
+        self.search_input.clear()
+        if is_wall:
+            self.search_input.setPlaceholderText(tr("search_placeholder"))
+        else:
+            self.search_input.setPlaceholderText(tr("osu_search_placeholder"))
+
+        self.perform_search(page=1)
+
+    def _on_osu_theme_clicked(self, selected_key: str):
+        self.osu_theme = selected_key
+        for key, btn in self.theme_chips.items():
+            btn.blockSignals(True)
+            btn.setChecked(key == selected_key)
+            btn.blockSignals(False)
+        self.perform_search(page=1)
+
+    def _on_osu_filter_changed(self):
+        self.perform_search(page=1)
 
     def _toggle_color_bar(self):
         is_visible = self.color_toggle_btn.isChecked()
@@ -418,38 +611,57 @@ class MainWindow(QMainWindow):
         if page < 1:
             page = 1
 
+        self.current_search_id += 1
+        search_id = self.current_search_id
+
         self.status_bar.showMessage(tr("status_searching", page=page))
         self.search_btn.setEnabled(False)
 
-        # Cancel any active search
-        if self.active_search_worker and self.active_search_worker.isRunning():
-            self.active_search_worker.terminate()
-
         query = self.search_input.text().strip()
-        cats = self._get_categories_str()
-        purity = self._get_purity_str()
-        sorting = self.sort_combo.currentData()
-        top_range = self.range_combo.currentData() if sorting == "toplist" else ""
-        ratios = self.ratio_combo.currentData()
-        atleast = self.res_combo.currentData()
-        colors = self.current_color
 
-        self.active_search_worker = SearchWorker(
-            query=query,
-            categories=cats,
-            purity=purity,
-            sorting=sorting,
-            top_range=top_range,
-            ratios=ratios,
-            atleast=atleast,
-            colors=colors,
-            page=page,
-        )
+        if self.current_mode == "osu":
+            season = self.osu_season_combo.currentData() or "all"
+            theme = self.osu_theme
+            sorting = self.osu_sort_combo.currentData() or "votes"
+            self.active_search_worker = OsuSearchWorker(
+                search_id=search_id,
+                query=query,
+                season=season,
+                theme=theme,
+                sorting=sorting,
+                page=page,
+                per_page=24,
+            )
+        else:
+            cats = self._get_categories_str()
+            purity = self._get_purity_str()
+            sorting = self.sort_combo.currentData()
+            top_range = self.range_combo.currentData() if sorting == "toplist" else ""
+            ratios = self.ratio_combo.currentData()
+            atleast = self.res_combo.currentData()
+            colors = self.current_color
+
+            self.active_search_worker = SearchWorker(
+                search_id=search_id,
+                query=query,
+                categories=cats,
+                purity=purity,
+                sorting=sorting,
+                top_range=top_range,
+                ratios=ratios,
+                atleast=atleast,
+                colors=colors,
+                page=page,
+            )
+
         self.active_search_worker.finished.connect(self._on_search_success)
         self.active_search_worker.failed.connect(self._on_search_failed)
         self.active_search_worker.start()
 
-    def _on_search_success(self, result: SearchResult):
+    def _on_search_success(self, search_id: int, result: SearchResult):
+        if search_id != self.current_search_id:
+            return
+
         self.search_btn.setEnabled(True)
         self.current_page = result.current_page
         self.last_page = max(1, result.last_page)
@@ -463,7 +675,11 @@ class MainWindow(QMainWindow):
         self.page_info_lbl.setText(tr("page_info", current=self.current_page, last=self.last_page))
         self.page_spin.setRange(1, self.last_page)
         self.page_spin.setValue(self.current_page)
-        self.total_count_lbl.setText(tr("total_found", total=f"{result.total:,}"))
+
+        if self.current_mode == "osu":
+            self.total_count_lbl.setText(tr("osu_total_found", total=f"{result.total:,}"))
+        else:
+            self.total_count_lbl.setText(tr("total_found", total=f"{result.total:,}"))
 
         self.prev_btn.setEnabled(self.current_page > 1)
         self.first_btn.setEnabled(self.current_page > 1)
@@ -472,7 +688,10 @@ class MainWindow(QMainWindow):
 
         self.status_bar.showMessage(tr("status_loaded", count=len(result.items), total=f"{result.total:,}"))
 
-    def _on_search_failed(self, error: str):
+    def _on_search_failed(self, search_id: int, error: str):
+        if search_id != self.current_search_id:
+            return
+
         self.search_btn.setEnabled(True)
         self.status_bar.showMessage(tr("status_search_error", error=error))
         QMessageBox.warning(self, tr("search_failed_title"), tr("search_failed_msg", error=error))
@@ -484,14 +703,23 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _search_by_tag(self, tag_name: str):
-        self.search_input.setText(tag_name)
+        clean_tag = tag_name.lstrip("#")
+        self.search_input.setText(clean_tag)
         self.perform_search(page=1)
 
     def _on_quick_download(self, item: WallpaperItem):
         # User requested quick download from card button
         # Respect user requirement: "Při každém stažení se zeptat dialogem na umístění"
         ext = os.path.splitext(item.path)[1] or ".jpg"
-        suggested_name = f"wallhaven-{item.id}{ext}"
+        if getattr(item, "_osu_meta", None):
+            meta = item._osu_meta
+            artist = "".join(c for c in meta.get("artist", "artist") if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
+            title = "".join(c for c in meta.get("title", item.id) if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
+            season = "".join(c for c in meta.get("season", "osu") if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
+            suggested_name = f"osu-{season}-{artist}-{title}{ext}"
+        else:
+            suggested_name = f"wallhaven-{item.id}{ext}"
+
         default_dir = Path(config.default_download_dir)
         default_dir.mkdir(parents=True, exist_ok=True)
         initial_path = str(default_dir / suggested_name)
