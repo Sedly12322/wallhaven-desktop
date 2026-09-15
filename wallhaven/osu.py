@@ -69,7 +69,7 @@ class OsuSeasonalManager:
                     resolution=f"{w}x{h}",
                     ratio="16:9",
                     file_size=0,
-                    file_type="image/jpeg",
+                    file_type="image/png" if preview.lower().endswith(".png") else "image/jpeg",
                     created_at=str(it.get("year", 2024)),
                     colors=[],
                     path=preview,
