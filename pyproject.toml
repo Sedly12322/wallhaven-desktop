@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wallhaven-desktop"
+version = "1.0.0"
+authors = [
+  { name = "Sedly12322" }
+]
+description = "Modern dark-themed Wallhaven wallpaper browser and downloader for Arch Linux / Hyprland"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: POSIX :: Linux",
+  "Environment :: X11 Applications :: Qt",
+  "Topic :: Desktop Environment",
+  "Topic :: Multimedia :: Graphics",
+]
+dependencies = [
+  "PyQt6>=6.6.0",
+  "requests>=2.31.0",
+  "pillow>=10.0.0",
+]
+
+[project.scripts]
+wallhaven-desktop = "wallhaven.app:main"
+wallhaven = "wallhaven.app:main"
+
+[project.urls]
+Homepage = "https://github.com/Sedly12322/wallhaven-desktop"
+Repository = "https://github.com/Sedly12322/wallhaven-desktop"
+Issues = "https://github.com/Sedly12322/wallhaven-desktop/issues"
+
+[tool.setuptools.packages.find]
+include = ["wallhaven*"]
