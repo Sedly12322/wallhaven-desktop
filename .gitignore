@@ -1,0 +1,23 @@
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary and download files
+*.download
+*.tmp
+*.log
+
+# Cache directory if placed locally
+.cache/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*~

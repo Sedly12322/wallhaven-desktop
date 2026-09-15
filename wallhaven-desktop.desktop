@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Wallhaven Desktop
+Comment=Prohlížení a stahování tapet ze serveru Wallhaven.cc pro Arch Linux
+Exec=/home/sedly/.local/bin/wallhaven-desktop
+Icon=/home/sedly/projects/wallhaven-desktop/assets/icon.png
+Terminal=false
+Type=Application
+Categories=Graphics;Photography;Utility;
+Keywords=wallpaper;wallhaven;background;desktop;hyprland;images;
+StartupWMClass=wallhaven-desktop
