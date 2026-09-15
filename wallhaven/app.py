@@ -46,8 +46,27 @@ def main():
     # Handle Ctrl+C gracefully
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    # Windows taskbar grouping & icon setup
+    # Windows taskbar grouping & Qt plugin setup
     if sys.platform == "win32":
+        # Remove any lingering or inherited Linux QPA platform settings on Windows
+        if os.environ.get("QT_QPA_PLATFORM") in ("wayland", "xcb", "wayland;xcb"):
+            os.environ.pop("QT_QPA_PLATFORM", None)
+
+        # PyInstaller bundled plugins location helper
+        if getattr(sys, "frozen", False):
+            base_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+            for qt_path in [
+                base_dir / "PyQt6" / "Qt6" / "plugins",
+                base_dir / "PyQt6" / "plugins",
+                base_dir / "plugins",
+            ]:
+                if qt_path.exists():
+                    os.environ["QT_PLUGIN_PATH"] = str(qt_path)
+                    platforms_path = qt_path / "platforms"
+                    if platforms_path.exists():
+                        os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platforms_path)
+                    break
+
         try:
             import ctypes
             myappid = "sedly.wallhaven.desktop.1.0"

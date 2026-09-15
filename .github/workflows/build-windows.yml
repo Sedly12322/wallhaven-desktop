@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Standalone Executable with PyInstaller
         run: |
-          pyinstaller --noconsole --onefile --icon=assets/icon.ico --add-data="assets;assets" --add-data="wallhaven/data;wallhaven/data" --name="Wallhaven-Desktop" main.py
+          pyinstaller --noconsole --onefile --clean --icon=assets/icon.ico --add-data="assets;assets" --add-data="wallhaven/data;wallhaven/data" --collect-all PyQt6 --name="Wallhaven-Desktop" main.py
 
       - name: Compile Windows Installer (Inno Setup)
         run: |
