@@ -45,7 +45,7 @@ DEFAULT_CONFIG = {
     "theme": "dark",
     "auto_set_wallpaper": True,
     "custom_wallpaper_cmd": "",
-    "language": "cs",
+    "language": "en",
 }
 
 
@@ -117,7 +117,7 @@ class Config:
 
     @property
     def language(self) -> str:
-        return str(self._config.get("language", "cs"))
+        return str(self._config.get("language", "en"))
 
     @language.setter
     def language(self, val: str):

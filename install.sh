@@ -43,6 +43,7 @@ fi
 cp "$SRC_DIR/assets/icon.png" "$ICON_DIR/wallhaven-desktop.png"
 
 # Create launcher script
+rm -f "$BIN_DIR/wallhaven-desktop"
 cat > "$BIN_DIR/wallhaven-desktop" << 'EOF'
 #!/usr/bin/env bash
 INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/wallhaven-desktop"

@@ -52,8 +52,8 @@ class SettingsDialog(QDialog):
         lang_layout.addWidget(self.lang_label)
 
         self.lang_combo = QComboBox()
-        self.lang_combo.addItem("Čeština (Czech)", "cs")
         self.lang_combo.addItem("English", "en")
+        self.lang_combo.addItem("Čeština (Czech)", "cs")
         idx = self.lang_combo.findData(i18n.current_language)
         if idx >= 0:
             self.lang_combo.setCurrentIndex(idx)

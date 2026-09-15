@@ -344,18 +344,13 @@ class I18nManager(QObject):
 
     def __init__(self):
         super().__init__()
-        # Determine language from config or system locale
-        saved_lang = config.get("language", "")
+        # Determine language from config, defaulting to English ("en")
+        saved_lang = config.get("language", "en")
         if saved_lang and saved_lang in TRANSLATIONS:
             self._current_lang = saved_lang
         else:
-            # Detect from system
-            sys_lang = QLocale.system().name().lower()
-            if sys_lang.startswith("cs") or sys_lang.startswith("sk"):
-                self._current_lang = "cs"
-            else:
-                self._current_lang = "en"
-            config.set("language", self._current_lang)
+            self._current_lang = "en"
+            config.set("language", "en")
 
     @property
     def current_language(self) -> str:
