@@ -21,7 +21,7 @@ from wallhaven.api import WallpaperItem, api
 from wallhaven.config import config
 from wallhaven.image_loader import loader
 from wallhaven.wallpaper import set_desktop_wallpaper
-from wallhaven.i18n import tr
+from wallhaven.i18n import tr, i18n
 
 
 class DetailFetchWorker(QThread):
@@ -87,6 +87,7 @@ class DetailDialog(QDialog):
         self._init_ui()
         self._load_preview()
         self._fetch_full_details()
+        i18n.language_changed.connect(self.retranslate_ui)
 
     def _init_ui(self):
         main_layout = QHBoxLayout(self)
@@ -106,15 +107,26 @@ class DetailDialog(QDialog):
 
         main_layout.addWidget(preview_container, stretch=3)
 
-        # Right: Info & Actions Sidebar
-        sidebar = QFrame()
-        sidebar.setFixedWidth(330)
-        sidebar.setStyleSheet("background-color: #1a1d24; border-radius: 8px; padding: 12px;")
+        # Right: Info & Actions Sidebar inside a ScrollArea
+        sidebar_scroll = QScrollArea()
+        sidebar_scroll.setWidgetResizable(True)
+        sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        sidebar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        sidebar_scroll.setFixedWidth(340)
+        sidebar_scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+        """)
+
+        sidebar = QWidget()
+        sidebar.setStyleSheet("background-color: #1a1d24; border-radius: 8px;")
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setSpacing(12)
         sidebar_layout.setContentsMargins(12, 12, 12, 12)
 
-        # Wallpaper ID and Wallhaven link
+        # 1. Wallpaper ID and Wallhaven link
         id_row = QHBoxLayout()
         id_lbl = QLabel(f"<b>#{self.item.id}</b>")
         id_lbl.setStyleSheet("font-size: 16px; color: #ffffff;")
@@ -122,21 +134,160 @@ class DetailDialog(QDialog):
 
         id_row.addStretch()
 
-        open_web_btn = QPushButton(tr("detail_open_web"))
-        open_web_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
-        open_web_btn.clicked.connect(self._open_in_browser)
-        id_row.addWidget(open_web_btn)
+        self.open_web_btn = QPushButton(tr("detail_open_web"))
+        self.open_web_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
+        self.open_web_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.open_web_btn.clicked.connect(self._open_in_browser)
+        id_row.addWidget(self.open_web_btn)
         sidebar_layout.addLayout(id_row)
 
-        # Metadata Table / List
-        meta_frame = QFrame()
-        meta_frame.setStyleSheet("background: #21242d; border-radius: 6px; padding: 8px;")
-        meta_layout = QVBoxLayout(meta_frame)
+        # 2. Download & Action Section (Prominent at top)
+        self.dl_frame = QFrame()
+        self.dl_frame.setObjectName("downloadPanel")
+        self.dl_frame.setStyleSheet("""
+            QFrame#downloadPanel {
+                background: #21242d;
+                border: 1px solid #333845;
+                border-radius: 8px;
+            }
+        """)
+        dl_layout = QVBoxLayout(self.dl_frame)
+        dl_layout.setContentsMargins(12, 12, 12, 12)
+        dl_layout.setSpacing(8)
+
+        self.dl_btn = QPushButton(tr("download_button"))
+        self.dl_btn.setFixedHeight(40)
+        self.dl_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.dl_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4f46e5;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                border: 1px solid #6366f1;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #4338ca;
+                border-color: #818cf8;
+            }
+            QPushButton:disabled {
+                background-color: #3730a3;
+                color: #94a3b8;
+                border-color: #3730a3;
+            }
+        """)
+        self.dl_btn.clicked.connect(self._on_download_clicked)
+        dl_layout.addWidget(self.dl_btn)
+
+        self.set_wall_cb = QCheckBox(tr("set_wall_checkbox"))
+        self.set_wall_cb.setChecked(config.auto_set_wallpaper)
+        self.set_wall_cb.setStyleSheet("""
+            QCheckBox {
+                color: #cbd5e1;
+                font-size: 12px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                border: 1px solid #475569;
+                background: #1e2128;
+            }
+            QCheckBox::indicator:checked {
+                background: #4f46e5;
+                border-color: #6366f1;
+            }
+        """)
+        dl_layout.addWidget(self.set_wall_cb)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setFixedHeight(18)
+        self.progress_bar.setRange(0, 100)
+        dl_layout.addWidget(self.progress_bar)
+
+        self.dl_status_lbl = QLabel("")
+        self.dl_status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.dl_status_lbl.setStyleSheet("font-size: 12px; color: #94a3b8;")
+        self.dl_status_lbl.setWordWrap(True)
+        self.dl_status_lbl.setVisible(False)
+        dl_layout.addWidget(self.dl_status_lbl)
+
+        # The two post-download action buttons
+        self.set_wall_now_btn = QPushButton(tr("set_wall_now_button"))
+        self.set_wall_now_btn.setFixedHeight(36)
+        self.set_wall_now_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.set_wall_now_btn.setVisible(False)
+        self.set_wall_now_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #312e81;
+                color: #e0e7ff;
+                border: 1px solid #6366f1;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background-color: #3730a3;
+                border-color: #818cf8;
+                color: #ffffff;
+            }
+            QPushButton:pressed {
+                background-color: #1e1b4b;
+            }
+        """)
+        self.set_wall_now_btn.clicked.connect(self._on_set_wall_now)
+        dl_layout.addWidget(self.set_wall_now_btn)
+
+        self.open_folder_btn = QPushButton(tr("open_folder_button"))
+        self.open_folder_btn.setFixedHeight(36)
+        self.open_folder_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.open_folder_btn.setVisible(False)
+        self.open_folder_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1e293b;
+                color: #f1f5f9;
+                border: 1px solid #475569;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background-color: #334155;
+                border-color: #94a3b8;
+                color: #ffffff;
+            }
+            QPushButton:pressed {
+                background-color: #0f172a;
+            }
+        """)
+        self.open_folder_btn.clicked.connect(self._on_open_folder)
+        dl_layout.addWidget(self.open_folder_btn)
+
+        sidebar_layout.addWidget(self.dl_frame)
+
+        # 3. Metadata Frame
+        self.meta_frame = QFrame()
+        self.meta_frame.setObjectName("metaFrame")
+        self.meta_frame.setStyleSheet("""
+            QFrame#metaFrame {
+                background: #21242d;
+                border: 1px solid #2d313b;
+                border-radius: 8px;
+            }
+        """)
+        meta_layout = QVBoxLayout(self.meta_frame)
+        meta_layout.setContentsMargins(10, 10, 10, 10)
         meta_layout.setSpacing(6)
 
-        def add_meta_row(label: str, val: str):
+        self.meta_labels = {}
+
+        def add_meta_row(key: str, label_text: str, val: str):
             r = QHBoxLayout()
-            l = QLabel(label)
+            l = QLabel(label_text)
             l.setStyleSheet("color: #94a3b8; font-size: 12px;")
             v = QLabel(f"<b>{val}</b>")
             v.setStyleSheet("color: #f1f5f9; font-size: 12px;")
@@ -144,23 +295,24 @@ class DetailDialog(QDialog):
             r.addStretch()
             r.addWidget(v)
             meta_layout.addLayout(r)
+            self.meta_labels[key] = l
 
-        add_meta_row(tr("meta_resolution"), self.item.resolution)
-        add_meta_row(tr("meta_ratio"), self.item.ratio)
-        add_meta_row(tr("meta_file_size"), self.item.human_file_size)
-        add_meta_row(tr("meta_format"), self.item.file_type or "image/jpeg")
-        add_meta_row(tr("meta_category"), self.item.category.capitalize())
-        add_meta_row(tr("meta_purity"), self.item.purity.upper())
-        add_meta_row(tr("meta_views"), f"{self.item.views:,}")
-        add_meta_row(tr("meta_favorites"), f"★ {self.item.favorites:,}")
+        add_meta_row("resolution", tr("meta_resolution"), self.item.resolution)
+        add_meta_row("ratio", tr("meta_ratio"), self.item.ratio)
+        add_meta_row("file_size", tr("meta_file_size"), self.item.human_file_size)
+        add_meta_row("format", tr("meta_format"), self.item.file_type or "image/jpeg")
+        add_meta_row("category", tr("meta_category"), self.item.category.capitalize())
+        add_meta_row("purity", tr("meta_purity"), self.item.purity.upper())
+        add_meta_row("views", tr("meta_views"), f"{self.item.views:,}")
+        add_meta_row("favorites", tr("meta_favorites"), f"★ {self.item.favorites:,}")
 
-        sidebar_layout.addWidget(meta_frame)
+        sidebar_layout.addWidget(self.meta_frame)
 
-        # Colors row
+        # 4. Color Palette
         if self.item.colors:
-            colors_title = QLabel(tr("meta_palette"))
-            colors_title.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
-            sidebar_layout.addWidget(colors_title)
+            self.colors_title_lbl = QLabel(tr("meta_palette"))
+            self.colors_title_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+            sidebar_layout.addWidget(self.colors_title_lbl)
 
             colors_layout = QHBoxLayout()
             colors_layout.setSpacing(4)
@@ -173,75 +325,63 @@ class DetailDialog(QDialog):
             colors_layout.addStretch()
             sidebar_layout.addLayout(colors_layout)
 
-        # Tags Section with scroll
-        tags_title = QLabel(tr("tags_title"))
-        tags_title.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
-        sidebar_layout.addWidget(tags_title)
+        # 5. Tags Section
+        self.tags_title_lbl = QLabel(tr("tags_title"))
+        self.tags_title_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        sidebar_layout.addWidget(self.tags_title_lbl)
 
-        tags_scroll = QScrollArea()
-        tags_scroll.setWidgetResizable(True)
-        tags_scroll.setFixedHeight(120)
-        tags_scroll.setStyleSheet("background: #181a21; border-radius: 6px; border: 1px solid #2d313b;")
-
-        self.tags_container = QWidget()
-        self.tags_layout = QVBoxLayout(self.tags_container)
+        self.tags_frame = QFrame()
+        self.tags_frame.setObjectName("tagsFrame")
+        self.tags_frame.setStyleSheet("""
+            QFrame#tagsFrame {
+                background: #181a21;
+                border-radius: 6px;
+                border: 1px solid #2d313b;
+            }
+        """)
+        self.tags_layout = QVBoxLayout(self.tags_frame)
         self.tags_layout.setContentsMargins(6, 6, 6, 6)
         self.tags_layout.setSpacing(4)
         self.tags_status_lbl = QLabel(tr("tags_loading"))
         self.tags_status_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
         self.tags_layout.addWidget(self.tags_status_lbl)
-        self.tags_layout.addStretch()
 
-        tags_scroll.setWidget(self.tags_container)
-        sidebar_layout.addWidget(tags_scroll)
-
+        sidebar_layout.addWidget(self.tags_frame)
         sidebar_layout.addStretch()
 
-        # Download Section
-        dl_frame = QFrame()
-        dl_frame.setStyleSheet("background: #21242d; border-radius: 6px; padding: 10px;")
-        dl_layout = QVBoxLayout(dl_frame)
-        dl_layout.setSpacing(8)
+        sidebar_scroll.setWidget(sidebar)
+        main_layout.addWidget(sidebar_scroll)
 
-        self.dl_btn = QPushButton(tr("download_button"))
-        self.dl_btn.setObjectName("primaryButton")
-        self.dl_btn.setFixedHeight(38)
-        self.dl_btn.setStyleSheet("font-size: 13px; font-weight: bold;")
-        self.dl_btn.clicked.connect(self._on_download_clicked)
-        dl_layout.addWidget(self.dl_btn)
+    def retranslate_ui(self):
+        self.setWindowTitle(tr("detail_title", id=self.item.id, res=self.item.resolution))
+        self.open_web_btn.setText(tr("detail_open_web"))
+        if not self.saved_path:
+            self.dl_btn.setText(tr("download_button"))
+        else:
+            self.dl_btn.setText("✓ " + tr("download_button").replace("⬇ ", ""))
+        self.set_wall_cb.setText(tr("set_wall_checkbox"))
+        self.set_wall_now_btn.setText(tr("set_wall_now_button"))
+        self.open_folder_btn.setText(tr("open_folder_button"))
+        self.tags_title_lbl.setText(tr("tags_title"))
 
-        self.set_wall_cb = QCheckBox(tr("set_wall_checkbox"))
-        self.set_wall_cb.setChecked(config.auto_set_wallpaper)
-        self.set_wall_cb.setStyleSheet("color: #cbd5e1; font-size: 11px;")
-        dl_layout.addWidget(self.set_wall_cb)
+        if hasattr(self, "colors_title_lbl") and self.colors_title_lbl:
+            self.colors_title_lbl.setText(tr("meta_palette"))
 
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        self.progress_bar.setRange(0, 100)
-        dl_layout.addWidget(self.progress_bar)
-
-        self.dl_status_lbl = QLabel("")
-        self.dl_status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.dl_status_lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
-        self.dl_status_lbl.setVisible(False)
-        dl_layout.addWidget(self.dl_status_lbl)
-
-        self.set_wall_now_btn = QPushButton(tr("set_wall_now_button"))
-        self.set_wall_now_btn.setVisible(False)
-        self.set_wall_now_btn.clicked.connect(self._on_set_wall_now)
-        dl_layout.addWidget(self.set_wall_now_btn)
-
-        self.open_folder_btn = QPushButton(tr("open_folder_button"))
-        self.open_folder_btn.setVisible(False)
-        self.open_folder_btn.clicked.connect(self._on_open_folder)
-        dl_layout.addWidget(self.open_folder_btn)
-
-        sidebar_layout.addWidget(dl_frame)
-
-        main_layout.addWidget(sidebar)
+        meta_keys = {
+            "resolution": "meta_resolution",
+            "ratio": "meta_ratio",
+            "file_size": "meta_file_size",
+            "format": "meta_format",
+            "category": "meta_category",
+            "purity": "meta_purity",
+            "views": "meta_views",
+            "favorites": "meta_favorites",
+        }
+        for k, tr_key in meta_keys.items():
+            if k in self.meta_labels:
+                self.meta_labels[k].setText(tr(tr_key))
 
     def _load_preview(self):
-        # We can use large thumb or full image
         url = self.item.thumb_large or self.item.thumb_original or self.item.thumb_small
         if not url:
             return
@@ -272,7 +412,6 @@ class DetailDialog(QDialog):
         super().closeEvent(event)
 
     def _update_preview(self, pixmap: QPixmap):
-        # Scale nicely to fit preview label
         lbl_size = self.preview_label.size()
         w = max(400, lbl_size.width())
         h = max(300, lbl_size.height())
@@ -286,7 +425,6 @@ class DetailDialog(QDialog):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # Re-scale preview on dialog resize
         target_url = self.item.thumb_large or self.item.thumb_original or self.item.thumb_small
         pm = loader.cache.get_pixmap(target_url, is_thumb=True)
         if pm and not pm.isNull():
@@ -295,12 +433,11 @@ class DetailDialog(QDialog):
     def _fetch_full_details(self):
         self.fetch_worker = DetailFetchWorker(self.item.id)
         self.fetch_worker.finished.connect(self._on_details_fetched)
-        self.fetch_worker.failed.connect(lambda err: self.tags_status_lbl.setText("Štítky nedostupné"))
+        self.fetch_worker.failed.connect(lambda err: self.tags_status_lbl.setText(tr("tags_unavailable")))
         self.fetch_worker.start()
 
     def _on_details_fetched(self, full_item: WallpaperItem):
         self.item = full_item
-        # Clear tags status
         while self.tags_layout.count():
             child = self.tags_layout.takeAt(0)
             if child.widget():
@@ -381,28 +518,41 @@ class DetailDialog(QDialog):
             mb_tot = total / (1024 * 1024)
             self.dl_status_lbl.setText(f"{mb_cur:.1f} MB / {mb_tot:.1f} MB ({pct}%)")
         else:
-            self.progress_bar.setRange(0, 0)  # indeterminate
+            self.progress_bar.setRange(0, 0)
 
     def _on_download_finished(self, saved_path: str):
         self.saved_path = saved_path
         self.progress_bar.setVisible(False)
         self.dl_btn.setEnabled(True)
         self.dl_btn.setText("✓ " + tr("download_button").replace("⬇ ", ""))
-        self.dl_btn.setStyleSheet("background: #059669; color: white;")
+        self.dl_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #059669;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 13px;
+                border: 1px solid #10b981;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #047857;
+            }
+        """)
 
         # Automatically set desktop wallpaper if requested
         if self.set_wall_cb.isChecked():
             ok, msg = set_desktop_wallpaper(saved_path, config.custom_wallpaper_cmd)
             if ok:
                 self.dl_status_lbl.setText(tr("download_status_set"))
-                self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 11px; font-weight: bold;")
+                self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 12px; font-weight: bold;")
             else:
                 self.dl_status_lbl.setText(tr("download_status_failed_wall", error=msg))
-                self.dl_status_lbl.setStyleSheet("color: #fbbf24; font-size: 11px;")
+                self.dl_status_lbl.setStyleSheet("color: #fbbf24; font-size: 12px;")
         else:
             self.dl_status_lbl.setText(tr("download_status_saved", filename=os.path.basename(saved_path)))
-            self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 11px;")
+            self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 12px;")
 
+        self.dl_status_lbl.setVisible(True)
         self.set_wall_now_btn.setVisible(True)
         self.open_folder_btn.setVisible(True)
         self.download_completed.emit(saved_path)
@@ -412,7 +562,7 @@ class DetailDialog(QDialog):
             ok, msg = set_desktop_wallpaper(self.saved_path, config.custom_wallpaper_cmd)
             if ok:
                 self.dl_status_lbl.setText(tr("download_status_set"))
-                self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 11px; font-weight: bold;")
+                self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 12px; font-weight: bold;")
                 QMessageBox.information(self, tr("set_wall_success_title"), tr("set_wall_success_msg"))
             else:
                 QMessageBox.warning(self, tr("set_wall_error_title"), tr("set_wall_error_msg", error=msg))
@@ -421,7 +571,7 @@ class DetailDialog(QDialog):
         self.progress_bar.setVisible(False)
         self.dl_btn.setEnabled(True)
         self.dl_status_lbl.setText(tr("download_failed_msg", error=error))
-        self.dl_status_lbl.setStyleSheet("color: #f87171; font-size: 11px;")
+        self.dl_status_lbl.setStyleSheet("color: #f87171; font-size: 12px;")
         QMessageBox.critical(self, tr("download_failed_title"), tr("download_failed_msg", error=error))
 
     def _on_open_folder(self):
