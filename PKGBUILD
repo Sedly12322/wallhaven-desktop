@@ -1,7 +1,7 @@
 # Maintainer: Sedly12322 <d.sedlar41@gmail.com>
 pkgname=wallhaven-desktop-git
 _pkgname=wallhaven-desktop
-pkgver=1.0.0.r1.g793571e
+pkgver=1.0.0.r2.ge5b356f
 pkgrel=1
 pkgdesc="Modern dark-themed Wallhaven wallpaper browser and downloader for Arch Linux / Hyprland"
 arch=('any')
@@ -33,7 +33,7 @@ sha256sums=('SKIP')
 
 pkgver() {
     cd "$srcdir/$_pkgname"
-    git describe --long --tags --always 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' || echo "1.0.0"
+    printf "1.0.0.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
 build() {
