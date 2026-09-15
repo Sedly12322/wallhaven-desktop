@@ -45,6 +45,7 @@ DEFAULT_CONFIG = {
     "theme": "dark",
     "auto_set_wallpaper": True,
     "custom_wallpaper_cmd": "",
+    "language": "cs",
 }
 
 
@@ -113,6 +114,14 @@ class Config:
     @custom_wallpaper_cmd.setter
     def custom_wallpaper_cmd(self, val: str):
         self.set("custom_wallpaper_cmd", str(val).strip())
+
+    @property
+    def language(self) -> str:
+        return str(self._config.get("language", "cs"))
+
+    @language.setter
+    def language(self, val: str):
+        self.set("language", str(val))
 
 
 config = Config()

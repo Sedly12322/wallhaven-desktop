@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 from wallhaven.api import WallpaperItem, SearchResult, api
 from wallhaven.config import config
+from wallhaven.i18n import tr, i18n
 from wallhaven.widgets.grid_widget import WallpaperGridWidget
 from wallhaven.widgets.color_bar import ColorBar
 from wallhaven.widgets.detail_dialog import DetailDialog, DownloadWorker
@@ -47,17 +48,18 @@ class SearchWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Wallhaven Desktop")
         self.resize(1280, 800)
         self.setMinimumSize(900, 600)
 
         self.current_page = 1
         self.last_page = 1
+        self.total_count = 0
         self.current_color = ""
         self.active_search_worker: SearchWorker | None = None
         self.quick_download_worker: DownloadWorker | None = None
 
         self._init_ui()
+        i18n.language_changed.connect(self.retranslate_ui)
         self.perform_search(page=1)
 
     def _init_ui(self):
@@ -80,34 +82,32 @@ class MainWindow(QMainWindow):
 
         # Search box
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Hledat tapety... (např. cyberpunk, anime, nature, minimal, landscape)")
         self.search_input.returnPressed.connect(self._on_search_triggered)
         self.search_input.setClearButtonEnabled(True)
         h_layout.addWidget(self.search_input, stretch=1)
 
-        self.search_btn = QPushButton("Hledat")
+        self.search_btn = QPushButton()
         self.search_btn.setObjectName("primaryButton")
         self.search_btn.clicked.connect(self._on_search_triggered)
         h_layout.addWidget(self.search_btn)
 
         # Toggle Color Bar button
-        self.color_toggle_btn = QPushButton("🎨 Barvy")
+        self.color_toggle_btn = QPushButton()
         self.color_toggle_btn.setCheckable(True)
         self.color_toggle_btn.clicked.connect(self._toggle_color_bar)
         h_layout.addWidget(self.color_toggle_btn)
 
         # Auto-wallpaper toggle button
-        self.auto_wall_btn = QPushButton("🖼️ Auto-tapeta")
+        self.auto_wall_btn = QPushButton()
         self.auto_wall_btn.setCheckable(True)
         self.auto_wall_btn.setChecked(config.auto_set_wallpaper)
-        self.auto_wall_btn.setToolTip("Při stažení automaticky nastavit tapetu na plochu")
         self.auto_wall_btn.clicked.connect(self._on_auto_wall_toggled)
         h_layout.addWidget(self.auto_wall_btn)
 
         # Settings button
-        settings_btn = QPushButton("⚙ Nastavení")
-        settings_btn.clicked.connect(self._open_settings)
-        h_layout.addWidget(settings_btn)
+        self.settings_btn = QPushButton()
+        self.settings_btn.clicked.connect(self._open_settings)
+        h_layout.addWidget(self.settings_btn)
 
         main_layout.addWidget(header)
 
@@ -119,25 +119,25 @@ class MainWindow(QMainWindow):
         f_layout.setSpacing(10)
 
         # Category Chips
-        cat_lbl = QLabel("Kategorie:")
-        cat_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
-        f_layout.addWidget(cat_lbl)
+        self.cat_lbl = QLabel()
+        self.cat_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        f_layout.addWidget(self.cat_lbl)
 
-        self.cat_general = QPushButton("General")
+        self.cat_general = QPushButton()
         self.cat_general.setObjectName("filterChip")
         self.cat_general.setCheckable(True)
         self.cat_general.setChecked(True)
         self.cat_general.clicked.connect(self._on_filter_changed)
         f_layout.addWidget(self.cat_general)
 
-        self.cat_anime = QPushButton("Anime")
+        self.cat_anime = QPushButton()
         self.cat_anime.setObjectName("filterChip")
         self.cat_anime.setCheckable(True)
         self.cat_anime.setChecked(True)
         self.cat_anime.clicked.connect(self._on_filter_changed)
         f_layout.addWidget(self.cat_anime)
 
-        self.cat_people = QPushButton("People")
+        self.cat_people = QPushButton()
         self.cat_people.setObjectName("filterChip")
         self.cat_people.setCheckable(True)
         self.cat_people.setChecked(True)
@@ -147,9 +147,9 @@ class MainWindow(QMainWindow):
         f_layout.addSpacing(8)
 
         # Purity Chips
-        pur_lbl = QLabel("Purity:")
-        pur_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
-        f_layout.addWidget(pur_lbl)
+        self.pur_lbl = QLabel()
+        self.pur_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        f_layout.addWidget(self.pur_lbl)
 
         self.pur_sfw = QPushButton("SFW")
         self.pur_sfw.setObjectName("filterChip")
@@ -175,51 +175,26 @@ class MainWindow(QMainWindow):
         f_layout.addSpacing(8)
 
         # Sorting combo
-        sort_lbl = QLabel("Řazení:")
-        sort_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
-        f_layout.addWidget(sort_lbl)
+        self.sort_lbl = QLabel()
+        self.sort_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        f_layout.addWidget(self.sort_lbl)
 
         self.sort_combo = QComboBox()
-        self.sort_combo.addItem("Toplist (Nejlepší)", "toplist")
-        self.sort_combo.addItem("Hot (Populární)", "hot")
-        self.sort_combo.addItem("Nejnovější", "date_added")
-        self.sort_combo.addItem("Zhlédnutí", "views")
-        self.sort_combo.addItem("Oblíbené", "favorites")
-        self.sort_combo.addItem("Náhodné", "random")
-        self.sort_combo.addItem("Relevance", "relevance")
         self.sort_combo.currentIndexChanged.connect(self._on_sorting_changed)
         f_layout.addWidget(self.sort_combo)
 
         # Top Range combo
         self.range_combo = QComboBox()
-        self.range_combo.addItem("1 Měsíc", "1M")
-        self.range_combo.addItem("1 Den", "1d")
-        self.range_combo.addItem("3 Dny", "3d")
-        self.range_combo.addItem("1 Týden", "1w")
-        self.range_combo.addItem("3 Měsíce", "3M")
-        self.range_combo.addItem("6 Měsíců", "6M")
-        self.range_combo.addItem("1 Rok", "1y")
         self.range_combo.currentIndexChanged.connect(self._on_filter_changed)
         f_layout.addWidget(self.range_combo)
 
         # Aspect Ratio combo
         self.ratio_combo = QComboBox()
-        self.ratio_combo.addItem("Jakýkoliv poměr", "")
-        self.ratio_combo.addItem("16:9 (Standard)", "16x9")
-        self.ratio_combo.addItem("16:10", "16x10")
-        self.ratio_combo.addItem("21:9 (Ultrawide)", "21x9")
-        self.ratio_combo.addItem("32:9 (Super Ultrawide)", "32x9")
-        self.ratio_combo.addItem("9:16 (Mobilní)", "9x16")
         self.ratio_combo.currentIndexChanged.connect(self._on_filter_changed)
         f_layout.addWidget(self.ratio_combo)
 
         # Min Resolution combo
         self.res_combo = QComboBox()
-        self.res_combo.addItem("Jakékoliv rozlišení", "")
-        self.res_combo.addItem("1080p (≥ 1920x1080)", "1920x1080")
-        self.res_combo.addItem("1440p (≥ 2560x1440)", "2560x1440")
-        self.res_combo.addItem("4K UHD (≥ 3840x2160)", "3840x2160")
-        self.res_combo.addItem("8K UHD (≥ 7680x4320)", "7680x4320")
         self.res_combo.currentIndexChanged.connect(self._on_filter_changed)
         f_layout.addWidget(self.res_combo)
 
@@ -248,43 +223,43 @@ class MainWindow(QMainWindow):
         p_layout.setContentsMargins(16, 6, 16, 6)
         p_layout.setSpacing(8)
 
-        self.first_btn = QPushButton("« První")
+        self.first_btn = QPushButton()
         self.first_btn.clicked.connect(lambda: self.perform_search(page=1))
         p_layout.addWidget(self.first_btn)
 
-        self.prev_btn = QPushButton("‹ Předchozí")
+        self.prev_btn = QPushButton()
         self.prev_btn.clicked.connect(lambda: self.perform_search(page=self.current_page - 1))
         p_layout.addWidget(self.prev_btn)
 
-        self.page_info_lbl = QLabel("Stránka 1 z 1")
+        self.page_info_lbl = QLabel()
         self.page_info_lbl.setStyleSheet("font-weight: bold; color: #f1f5f9; padding: 0 10px;")
         p_layout.addWidget(self.page_info_lbl)
 
-        self.next_btn = QPushButton("Další ›")
+        self.next_btn = QPushButton()
         self.next_btn.clicked.connect(lambda: self.perform_search(page=self.current_page + 1))
         p_layout.addWidget(self.next_btn)
 
-        self.last_btn = QPushButton("Poslední »")
+        self.last_btn = QPushButton()
         self.last_btn.clicked.connect(lambda: self.perform_search(page=self.last_page))
         p_layout.addWidget(self.last_btn)
 
         p_layout.addSpacing(16)
-        goto_lbl = QLabel("Přejít na:")
-        goto_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
-        p_layout.addWidget(goto_lbl)
+        self.goto_lbl = QLabel()
+        self.goto_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        p_layout.addWidget(self.goto_lbl)
 
         self.page_spin = QSpinBox()
         self.page_spin.setRange(1, 9999)
         self.page_spin.setValue(1)
         p_layout.addWidget(self.page_spin)
 
-        goto_btn = QPushButton("Přejít")
-        goto_btn.clicked.connect(lambda: self.perform_search(page=self.page_spin.value()))
-        p_layout.addWidget(goto_btn)
+        self.goto_btn = QPushButton()
+        self.goto_btn.clicked.connect(lambda: self.perform_search(page=self.page_spin.value()))
+        p_layout.addWidget(self.goto_btn)
 
         p_layout.addStretch()
 
-        self.total_count_lbl = QLabel("Nalezeno: 0 tapet")
+        self.total_count_lbl = QLabel()
         self.total_count_lbl.setStyleSheet("color: #94a3b8; font-size: 12px;")
         p_layout.addWidget(self.total_count_lbl)
 
@@ -293,7 +268,87 @@ class MainWindow(QMainWindow):
         # Status Bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Připraveno")
+
+        self.retranslate_ui()
+        self.status_bar.showMessage(tr("status_ready"))
+
+    def _retranslate_combos(self):
+        def _populate(combo: QComboBox, items: list[tuple[str, str]]):
+            cur = combo.currentData()
+            combo.blockSignals(True)
+            combo.clear()
+            for text, val in items:
+                combo.addItem(text, val)
+            if cur is not None:
+                idx = combo.findData(cur)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+            combo.blockSignals(False)
+
+        _populate(self.sort_combo, [
+            (tr("sort_toplist"), "toplist"),
+            (tr("sort_hot"), "hot"),
+            (tr("sort_latest"), "date_added"),
+            (tr("sort_views"), "views"),
+            (tr("sort_favorites"), "favorites"),
+            (tr("sort_random"), "random"),
+            (tr("sort_relevance"), "relevance"),
+        ])
+
+        _populate(self.range_combo, [
+            (tr("range_1M"), "1M"),
+            (tr("range_1d"), "1d"),
+            (tr("range_3d"), "3d"),
+            (tr("range_1w"), "1w"),
+            (tr("range_3M"), "3M"),
+            (tr("range_6M"), "6M"),
+            (tr("range_1y"), "1y"),
+        ])
+
+        _populate(self.ratio_combo, [
+            (tr("ratio_any"), ""),
+            (tr("ratio_16x9"), "16x9"),
+            (tr("ratio_16x10"), "16x10"),
+            (tr("ratio_21x9"), "21x9"),
+            (tr("ratio_32x9"), "32x9"),
+            (tr("ratio_9x16"), "9x16"),
+        ])
+
+        _populate(self.res_combo, [
+            (tr("res_any"), ""),
+            (tr("res_1080p"), "1920x1080"),
+            (tr("res_1440p"), "2560x1440"),
+            (tr("res_4k"), "3840x2160"),
+            (tr("res_8k"), "7680x4320"),
+        ])
+
+    def retranslate_ui(self):
+        self.setWindowTitle(tr("app_title"))
+        self.search_input.setPlaceholderText(tr("search_placeholder"))
+        self.search_btn.setText(tr("search_button"))
+        self.color_toggle_btn.setText(tr("colors_button"))
+        self.auto_wall_btn.setText(tr("auto_wallpaper"))
+        self.auto_wall_btn.setToolTip(tr("auto_wallpaper_tip"))
+        self.settings_btn.setText(tr("settings_button"))
+
+        self.cat_lbl.setText(tr("categories_label"))
+        self.cat_general.setText(tr("cat_general"))
+        self.cat_anime.setText(tr("cat_anime"))
+        self.cat_people.setText(tr("cat_people"))
+
+        self.pur_lbl.setText(tr("purity_label"))
+        self.sort_lbl.setText(tr("sorting_label"))
+
+        self._retranslate_combos()
+
+        self.first_btn.setText(tr("first_page"))
+        self.prev_btn.setText(tr("prev_page"))
+        self.page_info_lbl.setText(tr("page_info", current=self.current_page, last=self.last_page))
+        self.next_btn.setText(tr("next_page"))
+        self.last_btn.setText(tr("last_page"))
+        self.goto_lbl.setText(tr("goto_page"))
+        self.goto_btn.setText(tr("goto_btn"))
+        self.total_count_lbl.setText(tr("total_found", total=f"{self.total_count:,}"))
 
     def _toggle_color_bar(self):
         is_visible = self.color_toggle_btn.isChecked()
@@ -316,10 +371,9 @@ class MainWindow(QMainWindow):
         if self.pur_nsfw.isChecked() and not config.api_key:
             res = QMessageBox.question(
                 self,
-                "Vyžadován API klíč",
-                "Pro zobrazení NSFW tapet vyžaduje Wallhaven API klíč.\n\n"
-                "Chcete nyní otevřít nastavení a zadat svůj API klíč?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                tr("nsfw_req_title"),
+                tr("nsfw_req_msg"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if res == QMessageBox.StandardButton.Yes:
                 self._open_settings()
@@ -337,8 +391,8 @@ class MainWindow(QMainWindow):
 
     def _on_auto_wall_toggled(self):
         config.auto_set_wallpaper = self.auto_wall_btn.isChecked()
-        status = "Zapnuto" if config.auto_set_wallpaper else "Vypnuto"
-        self.status_bar.showMessage(f"Automatické nastavení tapety po stažení: {status}", 4000)
+        status = tr("status_auto_wall_on") if config.auto_set_wallpaper else tr("status_auto_wall_off")
+        self.status_bar.showMessage(tr("status_auto_wall_msg", status=status), 4000)
 
     def _on_search_triggered(self):
         self.perform_search(page=1)
@@ -364,7 +418,7 @@ class MainWindow(QMainWindow):
         if page < 1:
             page = 1
 
-        self.status_bar.showMessage(f"Vyhledávání tapet (stránka {page})...")
+        self.status_bar.showMessage(tr("status_searching", page=page))
         self.search_btn.setEnabled(False)
 
         # Cancel any active search
@@ -399,28 +453,29 @@ class MainWindow(QMainWindow):
         self.search_btn.setEnabled(True)
         self.current_page = result.current_page
         self.last_page = max(1, result.last_page)
+        self.total_count = result.total
 
         self.grid_widget.set_items(result.items)
         # Scroll back to top
         self.scroll_area.verticalScrollBar().setValue(0)
 
         # Update pagination
-        self.page_info_lbl.setText(f"Stránka {self.current_page} z {self.last_page}")
+        self.page_info_lbl.setText(tr("page_info", current=self.current_page, last=self.last_page))
         self.page_spin.setRange(1, self.last_page)
         self.page_spin.setValue(self.current_page)
-        self.total_count_lbl.setText(f"Nalezeno: {result.total:,} tapet")
+        self.total_count_lbl.setText(tr("total_found", total=f"{result.total:,}"))
 
         self.prev_btn.setEnabled(self.current_page > 1)
         self.first_btn.setEnabled(self.current_page > 1)
         self.next_btn.setEnabled(self.current_page < self.last_page)
         self.last_btn.setEnabled(self.current_page < self.last_page)
 
-        self.status_bar.showMessage(f"Načteno {len(result.items)} tapet. Celkem výsledků: {result.total:,}")
+        self.status_bar.showMessage(tr("status_loaded", count=len(result.items), total=f"{result.total:,}"))
 
     def _on_search_failed(self, error: str):
         self.search_btn.setEnabled(True)
-        self.status_bar.showMessage(f"Chyba vyhledávání: {error}")
-        QMessageBox.warning(self, "Chyba načítání", f"Nepodařilo se načíst tapety z Wallhaven:\n{error}")
+        self.status_bar.showMessage(tr("status_search_error", error=error))
+        QMessageBox.warning(self, tr("search_failed_title"), tr("search_failed_msg", error=error))
 
     def _on_card_clicked(self, item: WallpaperItem):
         dlg = DetailDialog(item, self)
@@ -443,27 +498,27 @@ class MainWindow(QMainWindow):
 
         save_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Uložit tapetu jako...",
+            tr("save_dialog_title"),
             initial_path,
-            f"Obrázky (*{ext});;Všechny soubory (*)",
+            tr("images_filter", ext=ext),
         )
 
         if not save_path:
             return
 
-        self.status_bar.showMessage(f"Stahování tapety #{item.id} do {os.path.basename(save_path)}...")
+        self.status_bar.showMessage(tr("status_downloading", id=item.id, filename=os.path.basename(save_path)))
 
         self.quick_download_worker = DownloadWorker(item.path, save_path)
         self.quick_download_worker.progress.connect(
             lambda cur, tot: self.status_bar.showMessage(
-                f"Stahování tapety #{item.id}: {cur // (1024*1024)} MB / {tot // (1024*1024)} MB..."
+                tr("status_download_progress", id=item.id, cur=cur // (1024 * 1024), tot=tot // (1024 * 1024))
             )
         )
         self.quick_download_worker.finished.connect(
             lambda path: self._on_download_completed(path)
         )
         self.quick_download_worker.failed.connect(
-            lambda err: QMessageBox.critical(self, "Chyba", f"Nepodařilo se stáhnout tapetu: {err}")
+            lambda err: QMessageBox.critical(self, tr("download_failed_title"), tr("download_failed_msg", error=err))
         )
         self.quick_download_worker.start()
 
@@ -472,8 +527,8 @@ class MainWindow(QMainWindow):
         if config.auto_set_wallpaper:
             ok, msg = set_desktop_wallpaper(path, config.custom_wallpaper_cmd)
             if ok:
-                self.status_bar.showMessage(f"✓ Tapeta {filename} byla uložena a nastavena na plochu!", 8000)
+                self.status_bar.showMessage(tr("status_download_done_wall", filename=filename), 8000)
             else:
-                self.status_bar.showMessage(f"✓ Uloženo: {filename} (chyba nastavení tapety: {msg})", 8000)
+                self.status_bar.showMessage(tr("status_download_fail_wall", filename=filename, error=msg), 8000)
         else:
-            self.status_bar.showMessage(f"✓ Tapeta byla úspěšně uložena: {filename}", 8000)
+            self.status_bar.showMessage(tr("status_download_done", filename=filename), 8000)

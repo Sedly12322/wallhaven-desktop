@@ -118,6 +118,11 @@ Ready-to-use binaries are available on the [**GitHub Releases**](https://github.
   - Real-time download progress bar displaying MB downloaded, total size, and percentage.
   - "Open in folder" button to reveal the file in your default file manager upon download completion.
 
+- **🌐 Multi-Language / Localization:**
+  - Full support for **English** and **Czech (Čeština)**.
+  - Automatically detects system locale on startup.
+  - Switch languages on the fly in **Settings (⚙)** with instant UI update without restarting.
+
 - **⚙️ Settings & Configuration:**
   - Store your Wallhaven API key to unlock NSFW wallpapers and your personal collections.
   - Configure default download directory.

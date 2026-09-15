@@ -21,6 +21,7 @@ from wallhaven.api import WallpaperItem, api
 from wallhaven.config import config
 from wallhaven.image_loader import loader
 from wallhaven.wallpaper import set_desktop_wallpaper
+from wallhaven.i18n import tr
 
 
 class DetailFetchWorker(QThread):
@@ -64,7 +65,7 @@ class DownloadWorker(QThread):
             if ok:
                 self.finished.emit(self.dest_path)
             else:
-                self.failed.emit("Stahování bylo zrušeno")
+                self.failed.emit(tr("download_cancelled"))
         except Exception as e:
             self.failed.emit(str(e))
 
@@ -79,7 +80,7 @@ class DetailDialog(QDialog):
         self.download_worker: DownloadWorker | None = None
         self.saved_path: str = ""
 
-        self.setWindowTitle(f"Tapeta {item.id} - Wallhaven ({item.resolution})")
+        self.setWindowTitle(tr("detail_title", id=item.id, res=item.resolution))
         self.resize(1100, 720)
         self.setMinimumSize(850, 550)
 
@@ -98,7 +99,7 @@ class DetailDialog(QDialog):
         preview_layout = QVBoxLayout(preview_container)
         preview_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.preview_label = QLabel("Načítání náhledu...")
+        self.preview_label = QLabel(tr("detail_loading_preview"))
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet("color: #64748b; font-size: 14px;")
         preview_layout.addWidget(self.preview_label)
@@ -121,7 +122,7 @@ class DetailDialog(QDialog):
 
         id_row.addStretch()
 
-        open_web_btn = QPushButton("Otevřít na webu ↗")
+        open_web_btn = QPushButton(tr("detail_open_web"))
         open_web_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
         open_web_btn.clicked.connect(self._open_in_browser)
         id_row.addWidget(open_web_btn)
@@ -144,20 +145,20 @@ class DetailDialog(QDialog):
             r.addWidget(v)
             meta_layout.addLayout(r)
 
-        add_meta_row("Rozlišení", self.item.resolution)
-        add_meta_row("Poměr stran", self.item.ratio)
-        add_meta_row("Velikost souboru", self.item.human_file_size)
-        add_meta_row("Formát", self.item.file_type or "image/jpeg")
-        add_meta_row("Kategorie", self.item.category.capitalize())
-        add_meta_row("Purity", self.item.purity.upper())
-        add_meta_row("Zobrazení", f"{self.item.views:,}")
-        add_meta_row("Oblíbené", f"★ {self.item.favorites:,}")
+        add_meta_row(tr("meta_resolution"), self.item.resolution)
+        add_meta_row(tr("meta_ratio"), self.item.ratio)
+        add_meta_row(tr("meta_file_size"), self.item.human_file_size)
+        add_meta_row(tr("meta_format"), self.item.file_type or "image/jpeg")
+        add_meta_row(tr("meta_category"), self.item.category.capitalize())
+        add_meta_row(tr("meta_purity"), self.item.purity.upper())
+        add_meta_row(tr("meta_views"), f"{self.item.views:,}")
+        add_meta_row(tr("meta_favorites"), f"★ {self.item.favorites:,}")
 
         sidebar_layout.addWidget(meta_frame)
 
         # Colors row
         if self.item.colors:
-            colors_title = QLabel("Barevná paleta:")
+            colors_title = QLabel(tr("meta_palette"))
             colors_title.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
             sidebar_layout.addWidget(colors_title)
 
@@ -173,7 +174,7 @@ class DetailDialog(QDialog):
             sidebar_layout.addLayout(colors_layout)
 
         # Tags Section with scroll
-        tags_title = QLabel("Štítky (Tags):")
+        tags_title = QLabel(tr("tags_title"))
         tags_title.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
         sidebar_layout.addWidget(tags_title)
 
@@ -186,7 +187,7 @@ class DetailDialog(QDialog):
         self.tags_layout = QVBoxLayout(self.tags_container)
         self.tags_layout.setContentsMargins(6, 6, 6, 6)
         self.tags_layout.setSpacing(4)
-        self.tags_status_lbl = QLabel("Načítání štítků...")
+        self.tags_status_lbl = QLabel(tr("tags_loading"))
         self.tags_status_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
         self.tags_layout.addWidget(self.tags_status_lbl)
         self.tags_layout.addStretch()
@@ -202,14 +203,14 @@ class DetailDialog(QDialog):
         dl_layout = QVBoxLayout(dl_frame)
         dl_layout.setSpacing(8)
 
-        self.dl_btn = QPushButton("⬇ Stáhnout tapetu")
+        self.dl_btn = QPushButton(tr("download_button"))
         self.dl_btn.setObjectName("primaryButton")
         self.dl_btn.setFixedHeight(38)
         self.dl_btn.setStyleSheet("font-size: 13px; font-weight: bold;")
         self.dl_btn.clicked.connect(self._on_download_clicked)
         dl_layout.addWidget(self.dl_btn)
 
-        self.set_wall_cb = QCheckBox("Nastavit jako tapetu po stažení")
+        self.set_wall_cb = QCheckBox(tr("set_wall_checkbox"))
         self.set_wall_cb.setChecked(config.auto_set_wallpaper)
         self.set_wall_cb.setStyleSheet("color: #cbd5e1; font-size: 11px;")
         dl_layout.addWidget(self.set_wall_cb)
@@ -225,12 +226,12 @@ class DetailDialog(QDialog):
         self.dl_status_lbl.setVisible(False)
         dl_layout.addWidget(self.dl_status_lbl)
 
-        self.set_wall_now_btn = QPushButton("🖼️ Nastavit jako tapetu nyní")
+        self.set_wall_now_btn = QPushButton(tr("set_wall_now_button"))
         self.set_wall_now_btn.setVisible(False)
         self.set_wall_now_btn.clicked.connect(self._on_set_wall_now)
         dl_layout.addWidget(self.set_wall_now_btn)
 
-        self.open_folder_btn = QPushButton("📁 Otevřít ve složce")
+        self.open_folder_btn = QPushButton(tr("open_folder_button"))
         self.open_folder_btn.setVisible(False)
         self.open_folder_btn.clicked.connect(self._on_open_folder)
         dl_layout.addWidget(self.open_folder_btn)
@@ -329,7 +330,7 @@ class DetailDialog(QDialog):
                 tag_btn.clicked.connect(lambda checked, t=tag_name: self._on_tag_clicked(t))
                 self.tags_layout.addWidget(tag_btn)
         else:
-            no_tags = QLabel("Žádné štítky")
+            no_tags = QLabel(tr("tags_none"))
             no_tags.setStyleSheet("color: #64748b; font-size: 11px;")
             self.tags_layout.addWidget(no_tags)
 
@@ -352,9 +353,9 @@ class DetailDialog(QDialog):
 
         save_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Uložit tapetu jako...",
+            tr("save_dialog_title"),
             initial_path,
-            f"Obrázky (*{ext});;Všechny soubory (*)",
+            tr("images_filter", ext=ext),
         )
 
         if not save_path:
@@ -364,7 +365,7 @@ class DetailDialog(QDialog):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.dl_status_lbl.setVisible(True)
-        self.dl_status_lbl.setText("Stahování v plném rozlišení...")
+        self.dl_status_lbl.setText(tr("download_progress_start"))
 
         self.download_worker = DownloadWorker(self.item.path, save_path)
         self.download_worker.progress.connect(self._on_download_progress)
@@ -386,20 +387,20 @@ class DetailDialog(QDialog):
         self.saved_path = saved_path
         self.progress_bar.setVisible(False)
         self.dl_btn.setEnabled(True)
-        self.dl_btn.setText("✓ Staženo")
+        self.dl_btn.setText("✓ " + tr("download_button").replace("⬇ ", ""))
         self.dl_btn.setStyleSheet("background: #059669; color: white;")
 
         # Automatically set desktop wallpaper if requested
         if self.set_wall_cb.isChecked():
             ok, msg = set_desktop_wallpaper(saved_path, config.custom_wallpaper_cmd)
             if ok:
-                self.dl_status_lbl.setText("✓ Uloženo a nastaveno na plochu!")
+                self.dl_status_lbl.setText(tr("download_status_set"))
                 self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 11px; font-weight: bold;")
             else:
-                self.dl_status_lbl.setText(f"Uloženo, ale tapetu nelze nastavit: {msg}")
+                self.dl_status_lbl.setText(tr("download_status_failed_wall", error=msg))
                 self.dl_status_lbl.setStyleSheet("color: #fbbf24; font-size: 11px;")
         else:
-            self.dl_status_lbl.setText(f"Uloženo: {os.path.basename(saved_path)}")
+            self.dl_status_lbl.setText(tr("download_status_saved", filename=os.path.basename(saved_path)))
             self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 11px;")
 
         self.set_wall_now_btn.setVisible(True)
@@ -410,18 +411,18 @@ class DetailDialog(QDialog):
         if self.saved_path and os.path.exists(self.saved_path):
             ok, msg = set_desktop_wallpaper(self.saved_path, config.custom_wallpaper_cmd)
             if ok:
-                self.dl_status_lbl.setText("✓ Nastaveno jako tapeta plochy!")
+                self.dl_status_lbl.setText(tr("download_status_set"))
                 self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 11px; font-weight: bold;")
-                QMessageBox.information(self, "Úspěch", "Tapeta byla úspěšně nastavena na plochu!")
+                QMessageBox.information(self, tr("set_wall_success_title"), tr("set_wall_success_msg"))
             else:
-                QMessageBox.warning(self, "Chyba", f"Nepodařilo se nastavit tapetu:\n{msg}")
+                QMessageBox.warning(self, tr("set_wall_error_title"), tr("set_wall_error_msg", error=msg))
 
     def _on_download_failed(self, error: str):
         self.progress_bar.setVisible(False)
         self.dl_btn.setEnabled(True)
-        self.dl_status_lbl.setText(f"Chyba: {error}")
+        self.dl_status_lbl.setText(tr("download_failed_msg", error=error))
         self.dl_status_lbl.setStyleSheet("color: #f87171; font-size: 11px;")
-        QMessageBox.critical(self, "Chyba při stahování", f"Tapetu se nepodařilo stáhnout:\n{error}")
+        QMessageBox.critical(self, tr("download_failed_title"), tr("download_failed_msg", error=error))
 
     def _on_open_folder(self):
         if self.saved_path and os.path.exists(self.saved_path):

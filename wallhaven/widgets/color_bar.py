@@ -4,37 +4,22 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QWidget,
 )
+from wallhaven.i18n import tr, i18n
 
-WALLHAVEN_COLORS = [
-    ("660000", "Tmavě červená"),
-    ("cc0000", "Červená"),
-    ("ea4c88", "Růžová"),
-    ("993399", "Fialová"),
-    ("333399", "Tmavě modrá"),
-    ("0066cc", "Královská modrá"),
-    ("0099ff", "Světle modrá"),
-    ("66cccc", "Tyrkysová"),
-    ("77cc33", "Světle zelená"),
-    ("336600", "Tmavě zelená"),
-    ("ffff00", "Žlutá"),
-    ("ff9900", "Oranžová"),
-    ("ff6600", "Jantarová"),
-    ("663300", "Hnědá"),
-    ("000000", "Černá"),
-    ("424153", "Břidlicová"),
-    ("999999", "Šedá"),
-    ("ffffff", "Bílá"),
+WALLHAVEN_COLOR_CODES = [
+    "660000", "cc0000", "ea4c88", "993399", "333399", "0066cc", "0099ff",
+    "66cccc", "77cc33", "336600", "ffff00", "ff9900", "ff6600", "663300",
+    "000000", "424153", "999999", "ffffff"
 ]
 
 
 class ColorButton(QPushButton):
-    def __init__(self, hex_color: str, tooltip: str = "", parent=None):
+    def __init__(self, hex_color: str, parent=None):
         super().__init__(parent)
         self.hex_color = hex_color
-        self.setToolTip(tooltip or f"#{hex_color}")
+        self.setToolTip(tr(f"color_{hex_color}"))
         self.setFixedSize(22, 22)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -63,23 +48,24 @@ class ColorBar(QFrame):
         self.selected_color = ""
         self.buttons: list[ColorButton] = []
         self._init_ui()
+        i18n.language_changed.connect(self.retranslate_ui)
 
     def _init_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(6)
 
-        title = QLabel("Barva:")
-        title.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 11px;")
-        layout.addWidget(title)
+        self.title = QLabel(tr("color_label"))
+        self.title.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 11px;")
+        layout.addWidget(self.title)
 
-        for hex_code, name in WALLHAVEN_COLORS:
-            btn = ColorButton(hex_code, name)
+        for hex_code in WALLHAVEN_COLOR_CODES:
+            btn = ColorButton(hex_code)
             btn.clicked.connect(lambda checked, c=hex_code, b=btn: self._on_color_clicked(c, b))
             layout.addWidget(btn)
             self.buttons.append(btn)
 
-        self.clear_btn = QPushButton("✕ Všechny")
+        self.clear_btn = QPushButton(tr("color_clear"))
         self.clear_btn.setStyleSheet("""
             QPushButton {
                 background: #252833;
@@ -99,6 +85,12 @@ class ColorBar(QFrame):
         layout.addWidget(self.clear_btn)
 
         layout.addStretch()
+
+    def retranslate_ui(self):
+        self.title.setText(tr("color_label"))
+        self.clear_btn.setText(tr("color_clear"))
+        for btn in self.buttons:
+            btn.setToolTip(tr(f"color_{btn.hex_color}"))
 
     def _on_color_clicked(self, hex_code: str, clicked_btn: ColorButton):
         if self.selected_color == hex_code:

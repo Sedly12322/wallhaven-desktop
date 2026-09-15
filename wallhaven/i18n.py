@@ -1,0 +1,384 @@
+import os
+import sys
+from PyQt6.QtCore import QObject, pyqtSignal, QLocale
+from wallhaven.config import config
+
+TRANSLATIONS = {
+    "en": {
+        # App & Header
+        "app_title": "Wallhaven Desktop",
+        "search_placeholder": "Search wallpapers... (e.g. cyberpunk, anime, nature, landscape)",
+        "search_button": "Search",
+        "colors_button": "🎨 Colors",
+        "auto_wallpaper": "🖼️ Auto-Wallpaper",
+        "auto_wallpaper_tip": "Automatically set downloaded wallpaper to your desktop background",
+        "settings_button": "⚙ Settings",
+        
+        # Filter Bar
+        "categories_label": "Categories:",
+        "cat_general": "General",
+        "cat_anime": "Anime",
+        "cat_people": "People",
+        "purity_label": "Purity:",
+        "sorting_label": "Sorting:",
+        "sort_toplist": "Toplist (Best)",
+        "sort_hot": "Hot",
+        "sort_latest": "Latest",
+        "sort_views": "Most Viewed",
+        "sort_favorites": "Favorites",
+        "sort_random": "Random",
+        "sort_relevance": "Relevance",
+        "range_1d": "1 Day",
+        "range_3d": "3 Days",
+        "range_1w": "1 Week",
+        "range_1M": "1 Month",
+        "range_3M": "3 Months",
+        "range_6M": "6 Months",
+        "range_1y": "1 Year",
+        "ratio_any": "Any aspect ratio",
+        "ratio_16x9": "16:9 (Standard)",
+        "ratio_16x10": "16:10",
+        "ratio_21x9": "21:9 (Ultrawide)",
+        "ratio_32x9": "32:9 (Super Ultrawide)",
+        "ratio_9x16": "9:16 (Mobile)",
+        "res_any": "Any resolution",
+        "res_1080p": "1080p (≥ 1920x1080)",
+        "res_1440p": "1440p (≥ 2560x1440)",
+        "res_4k": "4K UHD (≥ 3840x2160)",
+        "res_8k": "8K UHD (≥ 7680x4320)",
+        
+        # Color bar
+        "color_label": "Color:",
+        "color_clear": "✕ All colors",
+        
+        # Color names
+        "color_660000": "Dark Red",
+        "color_cc0000": "Red",
+        "color_ea4c88": "Pink",
+        "color_993399": "Purple",
+        "color_333399": "Dark Blue",
+        "color_0066cc": "Royal Blue",
+        "color_0099ff": "Light Blue",
+        "color_66cccc": "Teal",
+        "color_77cc33": "Light Green",
+        "color_336600": "Dark Green",
+        "color_ffff00": "Yellow",
+        "color_ff9900": "Orange",
+        "color_ff6600": "Amber",
+        "color_663300": "Brown",
+        "color_000000": "Black",
+        "color_424153": "Slate",
+        "color_999999": "Gray",
+        "color_ffffff": "White",
+
+        # Pagination
+        "first_page": "« First",
+        "prev_page": "‹ Previous",
+        "next_page": "Next ›",
+        "last_page": "Last »",
+        "page_info": "Page {current} of {last}",
+        "goto_page": "Go to:",
+        "goto_btn": "Go",
+        "total_found": "Found: {total} wallpapers",
+
+        # Card
+        "card_loading": "Loading...",
+        "card_no_preview": "No preview",
+        "card_download_tooltip": "Download wallpaper",
+
+        # Detail Dialog
+        "detail_title": "Wallpaper #{id} - Wallhaven ({res})",
+        "detail_loading_preview": "Loading preview...",
+        "detail_open_web": "Open on Web ↗",
+        "meta_resolution": "Resolution",
+        "meta_ratio": "Aspect Ratio",
+        "meta_file_size": "File Size",
+        "meta_format": "Format",
+        "meta_category": "Category",
+        "meta_purity": "Purity",
+        "meta_views": "Views",
+        "meta_favorites": "Favorites",
+        "meta_palette": "Color Palette:",
+        "tags_title": "Tags:",
+        "tags_loading": "Loading tags...",
+        "tags_none": "No tags",
+        "tags_unavailable": "Tags unavailable",
+        "download_button": "⬇ Download Wallpaper",
+        "set_wall_checkbox": "Set as wallpaper after download",
+        "set_wall_now_button": "🖼️ Set as wallpaper now",
+        "open_folder_button": "📁 Open in Folder",
+        "download_progress_start": "Downloading in full resolution...",
+        "download_status_saved": "Saved: {filename}",
+        "download_status_set": "✓ Saved and set as desktop wallpaper!",
+        "download_status_failed_wall": "Saved, but wallpaper could not be set: {error}",
+        "save_dialog_title": "Save wallpaper as...",
+        "images_filter": "Images (*{ext});;All files (*)",
+        "download_cancelled": "Download cancelled",
+        "download_failed_title": "Download Error",
+        "download_failed_msg": "Failed to download wallpaper:\n{error}",
+        "set_wall_success_title": "Success",
+        "set_wall_success_msg": "Wallpaper successfully applied to desktop!",
+        "set_wall_error_title": "Error",
+        "set_wall_error_msg": "Failed to set wallpaper:\n{error}",
+
+        # Settings Dialog
+        "settings_title": "Settings",
+        "lang_section": "Language / Jazyk",
+        "lang_label": "Interface language:",
+        "api_group": "Wallhaven API Key",
+        "api_desc": "An API key unlocks <b>NSFW</b> content and private collections.<br>Get your key at: <a href='https://wallhaven.cc/settings/api' style='color: #6366f1;'>wallhaven.cc/settings/api</a>",
+        "api_placeholder": "Paste your Wallhaven API key here...",
+        "api_toggle_tip": "Show / Hide key",
+        "dir_group": "Default Download Folder",
+        "dir_desc": "Save dialog opens with this folder pre-selected upon download.",
+        "browse_button": "Browse...",
+        "browse_dialog_title": "Select default wallpapers folder",
+        "wall_group": "Desktop Wallpaper",
+        "auto_wall_checkbox": "Automatically set wallpaper to desktop upon download",
+        "detected_tool": "Detected system tool: <code>{tool}</code>",
+        "tool_none": "None found",
+        "custom_cmd_label": "Custom wallpaper command (leave empty for auto-detection):",
+        "custom_cmd_placeholder": "e.g. swww img {file} or feh --bg-fill {file}",
+        "cache_group": "Cache",
+        "cache_size": "Cache size: {size} MB",
+        "cache_clear_button": "Clear cache",
+        "cache_cleared_title": "Done",
+        "cache_cleared_msg": "Cache was successfully cleared.",
+        "cache_clear_error": "Failed to clear cache: {error}",
+        "btn_save": "Save",
+        "btn_cancel": "Cancel",
+
+        # Status bar
+        "status_ready": "Ready",
+        "status_searching": "Searching wallpapers (page {page})...",
+        "status_loaded": "Loaded {count} wallpapers. Total results: {total}",
+        "status_search_error": "Search error: {error}",
+        "status_auto_wall_on": "ON (downloaded wallpapers will be set to desktop)",
+        "status_auto_wall_off": "OFF",
+        "status_auto_wall_msg": "Auto wallpaper upon download: {status}",
+        "status_downloading": "Downloading wallpaper #{id} to {filename}...",
+        "status_download_progress": "Downloading wallpaper #{id}: {cur} MB / {tot} MB...",
+        "status_download_done_wall": "✓ Wallpaper {filename} saved and set to desktop!",
+        "status_download_done": "✓ Wallpaper successfully saved: {filename}",
+        "status_download_fail_wall": "✓ Saved: {filename} (wallpaper setter error: {error})",
+
+        # Search error
+        "search_failed_title": "Search Error",
+        "search_failed_msg": "Failed to load wallpapers from Wallhaven:\n{error}",
+
+        # NSFW prompt
+        "nsfw_req_title": "API Key Required",
+        "nsfw_req_msg": "Wallhaven requires an API key to view NSFW wallpapers.\n\nWould you like to open Settings now to enter your API key?",
+    },
+    "cs": {
+        # App & Header
+        "app_title": "Wallhaven Desktop",
+        "search_placeholder": "Hledat tapety... (např. cyberpunk, anime, příroda, minimal)",
+        "search_button": "Hledat",
+        "colors_button": "🎨 Barvy",
+        "auto_wallpaper": "🖼️ Auto-tapeta",
+        "auto_wallpaper_tip": "Při stažení automaticky nastavit tapetu na plochu",
+        "settings_button": "⚙ Nastavení",
+        
+        # Filter Bar
+        "categories_label": "Kategorie:",
+        "cat_general": "General",
+        "cat_anime": "Anime",
+        "cat_people": "People",
+        "purity_label": "Purity:",
+        "sorting_label": "Řazení:",
+        "sort_toplist": "Toplist (Nejlepší)",
+        "sort_hot": "Hot (Populární)",
+        "sort_latest": "Nejnovější",
+        "sort_views": "Zhlédnutí",
+        "sort_favorites": "Oblíbené",
+        "sort_random": "Náhodné",
+        "sort_relevance": "Relevance",
+        "range_1d": "1 Den",
+        "range_3d": "3 Dny",
+        "range_1w": "1 Týden",
+        "range_1M": "1 Měsíc",
+        "range_3M": "3 Měsíce",
+        "range_6M": "6 Měsíců",
+        "range_1y": "1 Rok",
+        "ratio_any": "Jakýkoliv poměr",
+        "ratio_16x9": "16:9 (Standard)",
+        "ratio_16x10": "16:10",
+        "ratio_21x9": "21:9 (Ultrawide)",
+        "ratio_32x9": "32:9 (Super Ultrawide)",
+        "ratio_9x16": "9:16 (Mobilní)",
+        "res_any": "Jakékoliv rozlišení",
+        "res_1080p": "1080p (≥ 1920x1080)",
+        "res_1440p": "1440p (≥ 2560x1440)",
+        "res_4k": "4K UHD (≥ 3840x2160)",
+        "res_8k": "8K UHD (≥ 7680x4320)",
+        
+        # Color bar
+        "color_label": "Barva:",
+        "color_clear": "✕ Všechny",
+        
+        # Color names
+        "color_660000": "Tmavě červená",
+        "color_cc0000": "Červená",
+        "color_ea4c88": "Růžová",
+        "color_993399": "Fialová",
+        "color_333399": "Tmavě modrá",
+        "color_0066cc": "Královská modrá",
+        "color_0099ff": "Světle modrá",
+        "color_66cccc": "Tyrkysová",
+        "color_77cc33": "Světle zelená",
+        "color_336600": "Tmavě zelená",
+        "color_ffff00": "Žlutá",
+        "color_ff9900": "Oranžová",
+        "color_ff6600": "Jantarová",
+        "color_663300": "Hnědá",
+        "color_000000": "Černá",
+        "color_424153": "Břidlicová",
+        "color_999999": "Šedá",
+        "color_ffffff": "Bílá",
+
+        # Pagination
+        "first_page": "« První",
+        "prev_page": "‹ Předchozí",
+        "next_page": "Další ›",
+        "last_page": "Poslední »",
+        "page_info": "Stránka {current} z {last}",
+        "goto_page": "Přejít na:",
+        "goto_btn": "Přejít",
+        "total_found": "Nalezeno: {total} tapet",
+
+        # Card
+        "card_loading": "Načítání...",
+        "card_no_preview": "Žádný náhled",
+        "card_download_tooltip": "Stáhnout tapetu",
+
+        # Detail Dialog
+        "detail_title": "Tapeta #{id} - Wallhaven ({res})",
+        "detail_loading_preview": "Načítání náhledu...",
+        "detail_open_web": "Otevřít na webu ↗",
+        "meta_resolution": "Rozlišení",
+        "meta_ratio": "Poměr stran",
+        "meta_file_size": "Velikost souboru",
+        "meta_format": "Formát",
+        "meta_category": "Kategorie",
+        "meta_purity": "Purity",
+        "meta_views": "Zobrazení",
+        "meta_favorites": "Oblíbené",
+        "meta_palette": "Barevná paleta:",
+        "tags_title": "Štítky (Tags):",
+        "tags_loading": "Načítání štítků...",
+        "tags_none": "Žádné štítky",
+        "tags_unavailable": "Štítky nedostupné",
+        "download_button": "⬇ Stáhnout tapetu",
+        "set_wall_checkbox": "Nastavit jako tapetu po stažení",
+        "set_wall_now_button": "🖼️ Nastavit jako tapetu nyní",
+        "open_folder_button": "📁 Otevřít ve složce",
+        "download_progress_start": "Stahování v plném rozlišení...",
+        "download_status_saved": "Uloženo: {filename}",
+        "download_status_set": "✓ Uloženo a nastaveno na plochu!",
+        "download_status_failed_wall": "Uloženo, ale tapetu nelze nastavit: {error}",
+        "save_dialog_title": "Uložit tapetu jako...",
+        "images_filter": "Obrázky (*{ext});;Všechny soubory (*)",
+        "download_cancelled": "Stahování bylo zrušeno",
+        "download_failed_title": "Chyba při stahování",
+        "download_failed_msg": "Tapetu se nepodařilo stáhnout:\n{error}",
+        "set_wall_success_title": "Úspěch",
+        "set_wall_success_msg": "Tapeta byla úspěšně nastavena na plochu!",
+        "set_wall_error_title": "Chyba",
+        "set_wall_error_msg": "Nepodařilo se nastavit tapetu:\n{error}",
+
+        # Settings Dialog
+        "settings_title": "Nastavení",
+        "lang_section": "Jazyk rozhraní (Language)",
+        "lang_label": "Zvolený jazyk:",
+        "api_group": "Wallhaven API Klíč",
+        "api_desc": "API klíč umožňuje odemknout <b>NSFW</b> obsah a vyhledávat bez omezení.<br>Svůj klíč najdeš na: <a href='https://wallhaven.cc/settings/api' style='color: #6366f1;'>wallhaven.cc/settings/api</a>",
+        "api_placeholder": "Vlož svůj Wallhaven API klíč...",
+        "api_toggle_tip": "Zobrazit / Skrýt klíč",
+        "dir_group": "Výchozí složka pro stahování",
+        "dir_desc": "Při každém stažení se otevře dialog pro uložení s touto výchozí složkou.",
+        "browse_button": "Procházet...",
+        "browse_dialog_title": "Vyberte výchozí složku pro tapety",
+        "wall_group": "Tapeta plochy",
+        "auto_wall_checkbox": "Automaticky nastavit tapetu na plochu ihned po stažení",
+        "detected_tool": "Detekovaný nástroj v systému: <code>{tool}</code>",
+        "tool_none": "Nenalezeno",
+        "custom_cmd_label": "Vlastní příkaz pro nastavení tapety (ponechte prázdné pro automatiku):",
+        "custom_cmd_placeholder": "např. swww img {file} nebo feh --bg-fill {file}",
+        "cache_group": "Mezipaměť (Cache)",
+        "cache_size": "Velikost cache: {size} MB",
+        "cache_clear_button": "Vymazat mezipaměť",
+        "cache_cleared_title": "Hotovo",
+        "cache_cleared_msg": "Mezipaměť byla úspěšně vymazána.",
+        "cache_clear_error": "Nepodařilo se vymazat mezipaměť: {error}",
+        "btn_save": "Uložit",
+        "btn_cancel": "Zrušit",
+
+        # Status bar
+        "status_ready": "Připraveno",
+        "status_searching": "Vyhledávání tapet (stránka {page})...",
+        "status_loaded": "Načteno {count} tapet. Celkem výsledků: {total}",
+        "status_search_error": "Chyba vyhledávání: {error}",
+        "status_auto_wall_on": "Zapnuto (stažené tapety budou okamžitě nastaveny na plochu)",
+        "status_auto_wall_off": "Vypnuto",
+        "status_auto_wall_msg": "Automatické nastavení tapety po stažení: {status}",
+        "status_downloading": "Stahování tapety #{id} do {filename}...",
+        "status_download_progress": "Stahování tapety #{id}: {cur} MB / {tot} MB...",
+        "status_download_done_wall": "✓ Tapeta {filename} byla uložena a nastavena na plochu!",
+        "status_download_done": "✓ Tapeta byla úspěšně uložena: {filename}",
+        "status_download_fail_wall": "✓ Uloženo: {filename} (chyba nastavení tapety: {error})",
+
+        # Search error
+        "search_failed_title": "Chyba načítání",
+        "search_failed_msg": "Nepodařilo se načíst tapety z Wallhaven:\n{error}",
+
+        # NSFW prompt
+        "nsfw_req_title": "Vyžadován API klíč",
+        "nsfw_req_msg": "Pro zobrazení NSFW tapet vyžaduje Wallhaven API klíč.\n\nChcete nyní otevřít nastavení a zadat svůj API klíč?",
+    }
+}
+
+
+class I18nManager(QObject):
+    language_changed = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        # Determine language from config or system locale
+        saved_lang = config.get("language", "")
+        if saved_lang and saved_lang in TRANSLATIONS:
+            self._current_lang = saved_lang
+        else:
+            # Detect from system
+            sys_lang = QLocale.system().name().lower()
+            if sys_lang.startswith("cs") or sys_lang.startswith("sk"):
+                self._current_lang = "cs"
+            else:
+                self._current_lang = "en"
+            config.set("language", self._current_lang)
+
+    @property
+    def current_language(self) -> str:
+        return self._current_lang
+
+    def set_language(self, lang: str):
+        if lang in TRANSLATIONS and lang != self._current_lang:
+            self._current_lang = lang
+            config.set("language", lang)
+            self.language_changed.emit(lang)
+
+    def tr(self, key: str, **kwargs) -> str:
+        text = TRANSLATIONS.get(self._current_lang, {}).get(key)
+        if text is None:
+            # Fallback to English
+            text = TRANSLATIONS["en"].get(key, key)
+        if kwargs:
+            try:
+                return text.format(**kwargs)
+            except Exception:
+                return text
+        return text
+
+
+i18n = I18nManager()
+tr = i18n.tr

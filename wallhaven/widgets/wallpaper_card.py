@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 )
 from wallhaven.api import WallpaperItem
 from wallhaven.image_loader import loader
+from wallhaven.i18n import tr
 
 
 class WallpaperCard(QFrame):
@@ -42,7 +43,7 @@ class WallpaperCard(QFrame):
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.setStyleSheet("background-color: #12141a; border-radius: 6px;")
         self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.image_label.setText("Načítání...")
+        self.image_label.setText(tr("card_loading"))
         layout.addWidget(self.image_label, stretch=1)
 
         # Bottom info row
@@ -87,7 +88,7 @@ class WallpaperCard(QFrame):
         # Quick download button
         self.dl_btn = QPushButton("⬇")
         self.dl_btn.setFixedSize(26, 24)
-        self.dl_btn.setToolTip("Stáhnout tapetu")
+        self.dl_btn.setToolTip(tr("card_download_tooltip"))
         self.dl_btn.setStyleSheet("""
             QPushButton {
                 background: #4f46e5;
@@ -111,7 +112,7 @@ class WallpaperCard(QFrame):
     def _load_thumbnail(self):
         thumb_url = self.item.thumb_large or self.item.thumb_small
         if not thumb_url:
-            self.image_label.setText("Žádný náhled")
+            self.image_label.setText(tr("card_no_preview"))
             return
 
         self._connected = True
