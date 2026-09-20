@@ -51,6 +51,20 @@ class WallpaperCard(QFrame):
         info_row.setContentsMargins(2, 0, 2, 2)
         info_row.setSpacing(6)
 
+        # Live wallpaper indicator
+        if getattr(self.item, "is_animated", False):
+            live_badge = QLabel("▶ LIVE")
+            live_badge.setToolTip(tr("card_live_tooltip"))
+            live_badge.setStyleSheet("""
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0891b2, stop:1 #4f46e5);
+                color: #ffffff;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 1px 5px;
+            """)
+            info_row.addWidget(live_badge)
+
         # Resolution badge
         res_text = self.item.resolution
         if self.item.dimension_x >= 3840:
@@ -70,6 +84,9 @@ class WallpaperCard(QFrame):
             if 0 < rank <= 15:
                 cat_badge.setToolTip(f"Winner #{rank} - {meta.get('season', '')}")
             self.setToolTip(f"{meta.get('title', '')}\nArtist: {meta.get('artist', '')}\nSeason: {meta.get('season', '')}\nVotes: {meta.get('votes', 0):,}")
+        elif getattr(self.item, "_display_title", None):
+            cat_badge = QLabel(self.item.category.capitalize())
+            self.setToolTip(f"{self.item._display_title}\n{self.item.resolution} • Live Wallpaper (MoeWalls)")
         else:
             cat_badge = QLabel(self.item.category.capitalize())
         cat_badge.setObjectName("categoryBadge")
@@ -88,10 +105,11 @@ class WallpaperCard(QFrame):
 
         info_row.addStretch()
 
-        # Favorites counter
-        fav_lbl = QLabel(f"★ {self.item.favorites}")
-        fav_lbl.setStyleSheet("color: #fbbf24; font-size: 11px;")
-        info_row.addWidget(fav_lbl)
+        # Favorites counter (only if > 0)
+        if self.item.favorites > 0:
+            fav_lbl = QLabel(f"★ {self.item.favorites}")
+            fav_lbl.setStyleSheet("color: #fbbf24; font-size: 11px;")
+            info_row.addWidget(fav_lbl)
 
         # Quick download button
         self.dl_btn = QPushButton("⬇")

@@ -20,7 +20,11 @@ from PyQt6.QtWidgets import (
 )
 from wallhaven.config import config
 from wallhaven.cache import CACHE_DIR
-from wallhaven.wallpaper import detect_wallpaper_command
+from wallhaven.wallpaper import (
+    detect_wallpaper_command,
+    get_available_wallpaper_setters,
+    set_desktop_wallpaper,
+)
 from wallhaven.i18n import tr, i18n
 
 
@@ -28,8 +32,9 @@ class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(tr("settings_title"))
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(620)
         self.setModal(True)
+        self._all_setters = get_available_wallpaper_setters()
         self._init_ui()
         i18n.language_changed.connect(self.retranslate_ui)
 
@@ -46,7 +51,7 @@ class SettingsDialog(QDialog):
         self.lang_group = QGroupBox(tr("lang_section"))
         self._apply_group_style(self.lang_group)
         lang_layout = QHBoxLayout(self.lang_group)
-        
+
         self.lang_label = QLabel(tr("lang_label"))
         self.lang_label.setStyleSheet("color: #cbd5e1; font-size: 12px;")
         lang_layout.addWidget(self.lang_label)
@@ -113,23 +118,78 @@ class SettingsDialog(QDialog):
         dir_layout.addLayout(dir_input_row)
         layout.addWidget(self.dir_group)
 
-        # 4. Wallpaper Section
+        # 4. Wallpaper Section (Linux & Windows)
         self.wall_group = QGroupBox(tr("wall_group"))
         self._apply_group_style(self.wall_group)
         wall_layout = QVBoxLayout(self.wall_group)
-        wall_layout.setSpacing(8)
+        wall_layout.setSpacing(10)
 
+        # Auto set checkbox
         self.auto_wall_cb = QCheckBox(tr("auto_wall_checkbox"))
         self.auto_wall_cb.setChecked(config.auto_set_wallpaper)
         self.auto_wall_cb.setStyleSheet("font-weight: bold; color: #f1f5f9; font-size: 12px;")
         wall_layout.addWidget(self.auto_wall_cb)
 
+        # Method selector row
+        method_row = QHBoxLayout()
+        self.method_lbl = QLabel(tr("wallpaper_setter_label"))
+        self.method_lbl.setStyleSheet("color: #cbd5e1; font-size: 12px;")
+        method_row.addWidget(self.method_lbl)
+
+        self.setter_combo = QComboBox()
+        self.setter_combo.addItem(f"⭐ {tr('setter_auto')}", "auto")
+
+        # Add detected/available setters
+        for s in self._all_setters:
+            status = "✓ Dostupné" if s["available"] else "✗ Není nainstalováno"
+            vid = " | 🎬 Video" if s["supports_video"] else ""
+            label = f"{s['name']} [{status}{vid}]"
+            self.setter_combo.addItem(label, s["id"])
+
+        self.setter_combo.addItem(f"⚙ {tr('setter_custom')}", "custom")
+
+        # Select configured setter
+        cur_setter = config.wallpaper_setter
+        idx = self.setter_combo.findData(cur_setter)
+        if idx >= 0:
+            self.setter_combo.setCurrentIndex(idx)
+        else:
+            self.setter_combo.setCurrentIndex(0)
+        self.setter_combo.currentIndexChanged.connect(self._on_setter_changed)
+        method_row.addWidget(self.setter_combo, stretch=1)
+
+        # Test wallpaper setter button
+        self.test_wall_btn = QPushButton(tr("test_setter_btn"))
+        self.test_wall_btn.setToolTip("Vyzkoušet nastavení tapety na ploše")
+        self.test_wall_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #312e81;
+                color: #e0e7ff;
+                border: 1px solid #4f46e5;
+                border-radius: 6px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3730a3;
+                border-color: #6366f1;
+            }
+        """)
+        self.test_wall_btn.clicked.connect(self._on_test_wallpaper)
+        method_row.addWidget(self.test_wall_btn)
+
+        wall_layout.addLayout(method_row)
+
+        # Active detection description
         detected_list = detect_wallpaper_command()
         detected_str = " ".join(detected_list) if detected_list else tr("tool_none")
         self.det_lbl = QLabel(tr("detected_tool", tool=detected_str))
         self.det_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        self.det_lbl.setWordWrap(True)
         wall_layout.addWidget(self.det_lbl)
 
+        # Custom image command row
         self.custom_cmd_lbl = QLabel(tr("custom_cmd_label"))
         self.custom_cmd_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
         wall_layout.addWidget(self.custom_cmd_lbl)
@@ -138,6 +198,16 @@ class SettingsDialog(QDialog):
         self.custom_cmd_input.setPlaceholderText(tr("custom_cmd_placeholder"))
         self.custom_cmd_input.setText(config.custom_wallpaper_cmd)
         wall_layout.addWidget(self.custom_cmd_input)
+
+        # Custom video command row
+        self.custom_video_lbl = QLabel(tr("custom_video_cmd_label"))
+        self.custom_video_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        wall_layout.addWidget(self.custom_video_lbl)
+
+        self.custom_video_input = QLineEdit()
+        self.custom_video_input.setPlaceholderText("např. mpvpaper -vs -o 'no-audio --loop' '*' '{file}' &")
+        self.custom_video_input.setText(config.custom_video_wallpaper_cmd)
+        wall_layout.addWidget(self.custom_video_input)
 
         layout.addWidget(self.wall_group)
 
@@ -193,6 +263,68 @@ class SettingsDialog(QDialog):
             }
         """)
 
+    def _on_setter_changed(self):
+        setter_id = self.setter_combo.currentData()
+        if setter_id == "auto":
+            detected_list = detect_wallpaper_command()
+            detected_str = " ".join(detected_list) if detected_list else tr("tool_none")
+            self.det_lbl.setText(tr("detected_tool", tool=detected_str))
+        elif setter_id == "custom":
+            self.det_lbl.setText("Použije se vlastní zadaný příkaz níže s parametrem {file}.")
+        else:
+            setter_obj = next((s for s in self._all_setters if s["id"] == setter_id), None)
+            if setter_obj:
+                desc = setter_obj["description"]
+                cmd = setter_obj["default_cmd"]
+                status = "Dostupné" if setter_obj["available"] else "Není nainstalováno"
+                self.det_lbl.setText(f"Status: {status} • {desc}\nPříkaz: {cmd}")
+
+    def _on_test_wallpaper(self):
+        # Look for any existing wallpaper image or video in user directory or cache
+        candidates = [
+            Path(config.default_download_dir),
+            Path.home() / "Pictures" / "Wallpapers",
+            Path.home() / "Pictures",
+            CACHE_DIR,
+        ]
+        sample_file = None
+        for d in candidates:
+            if d.exists():
+                for ext in [".jpg", ".png", ".jpeg", ".mp4", ".webp"]:
+                    files = list(d.glob(f"*{ext}"))
+                    if files:
+                        sample_file = str(files[0])
+                        break
+            if sample_file:
+                break
+
+        if not sample_file:
+            QMessageBox.information(
+                self,
+                "Test nastavení tapety",
+                "Nebyl nalezen žádný existující soubor tapety pro otestování. "
+                "Stáhněte nejprve libovolnou tapetu v aplikaci.",
+            )
+            return
+
+        setter_id = self.setter_combo.currentData()
+        custom_cmd = self.custom_cmd_input.text().strip()
+        custom_vid = self.custom_video_input.text().strip()
+
+        ok, msg = set_desktop_wallpaper(sample_file, custom_cmd, setter_id, custom_vid)
+        if ok:
+            QMessageBox.information(
+                self,
+                "Test nastavení tapety",
+                f"✓ Úspěch!\n{msg}\nTestovací soubor: {os.path.basename(sample_file)}",
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "Test nastavení tapety",
+                f"✗ Nastavení selhalo:\n{msg}",
+            )
+
     def _on_language_changed(self):
         new_lang = self.lang_combo.currentData()
         if new_lang:
@@ -211,12 +343,14 @@ class SettingsDialog(QDialog):
         self.browse_btn.setText(tr("browse_button"))
         self.wall_group.setTitle(tr("wall_group"))
         self.auto_wall_cb.setText(tr("auto_wall_checkbox"))
+        self.method_lbl.setText(tr("wallpaper_setter_label"))
+        self.test_wall_btn.setText(tr("test_setter_btn"))
 
-        detected_list = detect_wallpaper_command()
-        detected_str = " ".join(detected_list) if detected_list else tr("tool_none")
-        self.det_lbl.setText(tr("detected_tool", tool=detected_str))
+        self._on_setter_changed()
+
         self.custom_cmd_lbl.setText(tr("custom_cmd_label"))
         self.custom_cmd_input.setPlaceholderText(tr("custom_cmd_placeholder"))
+        self.custom_video_lbl.setText(tr("custom_video_cmd_label"))
         self.cache_group.setTitle(tr("cache_group"))
         self.cache_size_lbl.setText(self._get_cache_size_str())
         self.clear_cache_btn.setText(tr("cache_clear_button"))
@@ -266,7 +400,9 @@ class SettingsDialog(QDialog):
         if chosen_dir and os.path.isdir(chosen_dir):
             config.default_download_dir = chosen_dir
         config.auto_set_wallpaper = self.auto_wall_cb.isChecked()
+        config.wallpaper_setter = self.setter_combo.currentData() or "auto"
         config.custom_wallpaper_cmd = self.custom_cmd_input.text().strip()
+        config.custom_video_wallpaper_cmd = self.custom_video_input.text().strip()
         config.language = self.lang_combo.currentData()
         config.save()
         self.accept()

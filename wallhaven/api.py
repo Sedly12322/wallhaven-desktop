@@ -33,6 +33,8 @@ class WallpaperItem:
     thumb_original: str
     tags: list[dict] = field(default_factory=list)
     uploader: Optional[dict] = None
+    is_animated: bool = False
+    preview_video_url: str = ""
 
     @classmethod
     def from_dict(cls, d: dict) -> "WallpaperItem":
@@ -176,11 +178,14 @@ class WallhavenAPI:
         dest_path: str,
         progress_callback: Optional[Callable[[int, int], None]] = None,
         is_cancelled: Optional[Callable[[], bool]] = None,
+        headers: Optional[dict] = None,
     ) -> bool:
         tmp_path = dest_path + ".download"
         try:
-            headers = self._get_headers()
-            with self.session.get(url, headers=headers, stream=True, timeout=30) as r:
+            req_headers = self._get_headers()
+            if headers:
+                req_headers.update(headers)
+            with self.session.get(url, headers=req_headers, stream=True, timeout=30) as r:
                 r.raise_for_status()
                 total_size = int(r.headers.get("content-length", 0))
                 downloaded = 0

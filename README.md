@@ -90,21 +90,23 @@ Ready-to-use binaries are available on the [**GitHub Releases**](https://github.
   - Sleek interface tailored for modern Linux desktops, Hyprland dotfiles, and Windows dark mode.
   - Responsive grid layout with asynchronous image loading, memory caching, and badges indicating resolution (e.g. `4K UHD`, `2K`, `1080p`), category, and purity.
 
-- **🖼️ Auto-Set Wallpaper upon Download:**
-  - Automatically sets downloaded wallpapers to your desktop background with zero hassle.
-  - **Arch Linux & Hyprland:** Prioritizes quickshell/illogical-impulse (`switchwall.sh`) with dynamic Matugen color theme generation. Also supports `swww`, `waypaper`, `hyprpaper`, `feh`, `nitrogen`, and custom commands.
-  - **Windows 10/11:** Seamless integration via native Windows API (`SystemParametersInfoW`).
-  - Toggle on/off anytime using the **`🖼️ Auto Wallpaper`** button in the top bar.
+- **🎬 MoeWalls (Live / Animated Wallpapers):**
+  - Dedicated tab featuring **20,000+ high-definition 2K / 4K 60FPS animated video wallpapers** from MoeWalls.
+  - **Embedded Video Player:** Live preview loop in the detail dialog powered by QtMultimedia & FFmpeg with Play/Pause and Mute toggles.
+  - **Direct MP4 Downloads:** Download pristine high-bitrate MP4 files with real-time download progress.
+  - **Category & Keyword Filtering:** Browse Anime, Games, Sci-Fi, Fantasy, Landscape, Pixel Art, Animals, Vehicles, Movies, Lifestyle, Abstract, and full-text search.
+  - **Automatic Desktop Setup:** Seamlessly sets video wallpapers using Quickshell, `mpvpaper`, or custom commands.
 
-- **🔍 Advanced Search & Filtering:**
-  - **Full-text Query:** Search by keywords, `@uploader`, or `#tags`.
-  - **Categories:** Toggle *General*, *Anime*, and *People*.
-  - **Purity:** *SFW*, *Sketchy*, and *NSFW* (with API key check and configuration prompt).
-  - **Sorting:** *Toplist*, *Hot*, *Latest (Date Added)*, *Views*, *Favorites*, *Random*, and *Relevance*.
-  - **Toplist Time Range:** 1 day, 3 days, 1 week, 1 month, 3 months, 1 year.
-  - **Aspect Ratios:** Any, 16:9, 16:10, 21:9 Ultrawide, 32:9 Superwide, 9:16 Mobile/Portrait.
-  - **Resolutions:** Any, 1080p, 1440p (2K), 4K UHD, 8K UHD.
-  - **Color Palette (🎨 Colors):** Filter wallpapers by dominant color using 18 official Wallhaven shades.
+- **🖼️ Comprehensive Linux & Windows Wallpaper Setting:**
+  - Automatically sets downloaded wallpapers to your desktop background with zero hassle.
+  - **Hyprland / Wayland with Quickshell:** Full native support for Quickshell IPC (`serpantinum` and `illogical-impulse`), setting both static images and live video (`.mp4`) wallpapers directly!
+  - **Wayland Setters:** Native support for `mpvpaper` (animated video wallpapers), `swww`, `hyprpaper`, `waypaper`, and `swaybg`.
+  - **KDE Plasma 5 & 6:** Built-in support via `plasma-apply-wallpaperimage`.
+  - **GNOME / Cinnamon / MATE / XFCE:** Native integration via `gsettings` (with both light and dark theme background setting) and `xfconf-query`.
+  - **X11 Window Managers:** Native support for `feh`, `nitrogen`, and `xwinwrap` + `mpv` for video backgrounds.
+  - **Windows 10/11:** Native Windows API (`SystemParametersInfoW`) for static images and Lively Wallpaper CLI for animated wallpapers.
+  - **Configurable in Settings:** Choose auto-detection or select your preferred setter from a dropdown, test it with one click, or define custom command lines with `{file}`.
+  - Toggle on/off anytime using the **`🖼️ Auto Wallpaper`** button in the top bar.
 
 - **🎯 osu! Seasonal Wallpapers (Official Contest Art):**
   - Dedicated tab featuring **1,699+ official seasonal contest wallpapers** directly from osu! fanart competitions (2020–2026).
@@ -114,6 +116,16 @@ Ready-to-use binaries are available on the [**GitHub Releases**](https://github.
   - **Sorting:** 🏆 Top Voted (Official Contest Winners), 🕒 Newest Season, and 🎲 Random.
   - Search by artist username, illustration title, or season name.
   - Full metadata with artist credits, vote counts, winner badges, and direct links to official contest pages.
+
+- **🔍 Advanced Search & Filtering (Wallhaven):**
+  - **Full-text Query:** Search by keywords, `@uploader`, or `#tags`.
+  - **Categories:** Toggle *General*, *Anime*, and *People*.
+  - **Purity:** *SFW*, *Sketchy*, and *NSFW* (with API key check and configuration prompt).
+  - **Sorting:** *Toplist*, *Hot*, *Latest (Date Added)*, *Views*, *Favorites*, *Random*, and *Relevance*.
+  - **Toplist Time Range:** 1 day, 3 days, 1 week, 1 month, 3 months, 1 year.
+  - **Aspect Ratios:** Any, 16:9, 16:10, 21:9 Ultrawide, 32:9 Superwide, 9:16 Mobile/Portrait.
+  - **Resolutions:** Any, 1080p, 1440p (2K), 4K UHD, 8K UHD.
+  - **Color Palette (🎨 Colors):** Filter wallpapers by dominant color using 18 official Wallhaven shades.
 
 - **🔍 Full Detail Modal:**
   - Click any card to inspect the full preview image, exact dimensions, ratio, file size, format, views, and favorites count.

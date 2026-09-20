@@ -22,8 +22,9 @@ makedepends=(
 )
 optdepends=(
     'libnotify: Desktop notifications'
+    'quickshell: Wallpaper engine for Hyprland (supports video wallpapers)'
+    'mpvpaper: Wayland video wallpaper player'
     'swww: Wayland wallpaper daemon'
-    'mpvpaper: Video wallpaper player'
     'feh: X11 wallpaper setter'
 )
 provides=("$_pkgname")

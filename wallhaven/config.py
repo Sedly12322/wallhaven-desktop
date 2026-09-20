@@ -44,7 +44,10 @@ DEFAULT_CONFIG = {
     "per_page": 24,
     "theme": "dark",
     "auto_set_wallpaper": True,
+    "wallpaper_setter": "auto",
     "custom_wallpaper_cmd": "",
+    "custom_video_wallpaper_cmd": "",
+    "moewalls_category": "all",
     "language": "en",
 }
 
@@ -108,12 +111,36 @@ class Config:
         self.set("auto_set_wallpaper", bool(val))
 
     @property
+    def wallpaper_setter(self) -> str:
+        return str(self._config.get("wallpaper_setter", "auto")).strip()
+
+    @wallpaper_setter.setter
+    def wallpaper_setter(self, val: str):
+        self.set("wallpaper_setter", str(val).strip())
+
+    @property
     def custom_wallpaper_cmd(self) -> str:
         return str(self._config.get("custom_wallpaper_cmd", "")).strip()
 
     @custom_wallpaper_cmd.setter
     def custom_wallpaper_cmd(self, val: str):
         self.set("custom_wallpaper_cmd", str(val).strip())
+
+    @property
+    def custom_video_wallpaper_cmd(self) -> str:
+        return str(self._config.get("custom_video_wallpaper_cmd", "")).strip()
+
+    @custom_video_wallpaper_cmd.setter
+    def custom_video_wallpaper_cmd(self, val: str):
+        self.set("custom_video_wallpaper_cmd", str(val).strip())
+
+    @property
+    def moewalls_category(self) -> str:
+        return str(self._config.get("moewalls_category", "all")).strip()
+
+    @moewalls_category.setter
+    def moewalls_category(self, val: str):
+        self.set("moewalls_category", str(val).strip())
 
     @property
     def language(self) -> str:

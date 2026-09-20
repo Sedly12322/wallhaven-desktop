@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 from wallhaven.api import WallpaperItem, SearchResult, api
 from wallhaven.osu import osu_manager
+from wallhaven.moewalls import moewalls_manager
 from wallhaven.config import config
 from wallhaven.i18n import tr, i18n
 from wallhaven.widgets.grid_widget import WallpaperGridWidget
@@ -59,6 +60,23 @@ class OsuSearchWorker(QThread):
     def run(self):
         try:
             res = osu_manager.search(**self.kwargs)
+            self.finished.emit(self.search_id, res)
+        except Exception as e:
+            self.failed.emit(self.search_id, str(e))
+
+
+class MoeSearchWorker(QThread):
+    finished = pyqtSignal(int, SearchResult)
+    failed = pyqtSignal(int, str)
+
+    def __init__(self, search_id: int, **kwargs):
+        super().__init__()
+        self.search_id = search_id
+        self.kwargs = kwargs
+
+    def run(self):
+        try:
+            res = moewalls_manager.search(**self.kwargs)
             self.finished.emit(self.search_id, res)
         except Exception as e:
             self.failed.emit(self.search_id, str(e))
@@ -110,6 +128,14 @@ class MainWindow(QMainWindow):
         self.tab_wallhaven.setCursor(Qt.CursorShape.PointingHandCursor)
         self.tab_wallhaven.clicked.connect(lambda: self._set_mode("wallhaven"))
         tabs_layout.addWidget(self.tab_wallhaven)
+
+        self.tab_moewalls = QPushButton()
+        self.tab_moewalls.setObjectName("navTab")
+        self.tab_moewalls.setCheckable(True)
+        self.tab_moewalls.setChecked(False)
+        self.tab_moewalls.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.tab_moewalls.clicked.connect(lambda: self._set_mode("moewalls"))
+        tabs_layout.addWidget(self.tab_moewalls)
 
         self.tab_osu = QPushButton()
         self.tab_osu.setObjectName("navTab")
@@ -299,6 +325,32 @@ class MainWindow(QMainWindow):
         osu_layout.addStretch()
         main_layout.addWidget(self.osu_filter_bar)
 
+        # 2C. MoeWalls (Live Wallpapers) Filter Bar
+        self.moe_filter_bar = QFrame()
+        self.moe_filter_bar.setObjectName("filterPanel")
+        self.moe_filter_bar.setVisible(False)
+        moe_layout = QHBoxLayout(self.moe_filter_bar)
+        moe_layout.setContentsMargins(16, 6, 16, 6)
+        moe_layout.setSpacing(10)
+
+        self.moe_cat_lbl = QLabel(tr("moe_category_label"))
+        self.moe_cat_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        moe_layout.addWidget(self.moe_cat_lbl)
+
+        self.moe_cat_combo = QComboBox()
+        self.moe_cat_combo.setMinimumWidth(160)
+        for cat_id, cat_name in moewalls_manager.get_categories():
+            self.moe_cat_combo.addItem(cat_name, cat_id)
+        self.moe_cat_combo.currentIndexChanged.connect(lambda: self.perform_search(page=1))
+        moe_layout.addWidget(self.moe_cat_combo)
+
+        moe_badge = QLabel("🎬 20 000+ 2K / 4K 60FPS Video Wallpapers (MP4)")
+        moe_badge.setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: bold; margin-left: 8px;")
+        moe_layout.addWidget(moe_badge)
+
+        moe_layout.addStretch()
+        main_layout.addWidget(self.moe_filter_bar)
+
         # 3. Color Bar (Collapsible, Wallhaven only)
         self.color_bar = ColorBar()
         self.color_bar.setVisible(False)
@@ -463,10 +515,13 @@ class MainWindow(QMainWindow):
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
         self.tab_wallhaven.setText(tr("tab_wallhaven"))
+        self.tab_moewalls.setText(tr("tab_moewalls"))
         self.tab_osu.setText(tr("tab_osu"))
 
         if self.current_mode == "osu":
             self.search_input.setPlaceholderText(tr("osu_search_placeholder"))
+        elif self.current_mode == "moewalls":
+            self.search_input.setPlaceholderText(tr("moe_search_placeholder"))
         else:
             self.search_input.setPlaceholderText(tr("search_placeholder"))
 
@@ -485,6 +540,9 @@ class MainWindow(QMainWindow):
         self.sort_lbl.setText(tr("sorting_label"))
         self._retranslate_combos()
 
+        # MoeWalls filter labels
+        self.moe_cat_lbl.setText(tr("moe_category_label"))
+
         # osu! filter labels
         self.osu_season_lbl.setText(tr("season_label"))
         self.osu_theme_lbl.setText(tr("theme_label"))
@@ -502,22 +560,30 @@ class MainWindow(QMainWindow):
 
         if self.current_mode == "osu":
             self.total_count_lbl.setText(tr("osu_total_found", total=f"{self.total_count:,}"))
+        elif self.current_mode == "moewalls":
+            self.total_count_lbl.setText(tr("moe_total_found", total=f"{self.total_count:,}"))
         else:
             self.total_count_lbl.setText(tr("total_found", total=f"{self.total_count:,}"))
 
     def _set_mode(self, mode: str):
         if mode == self.current_mode:
             self.tab_wallhaven.setChecked(mode == "wallhaven")
+            self.tab_moewalls.setChecked(mode == "moewalls")
             self.tab_osu.setChecked(mode == "osu")
             return
 
         self.current_mode = mode
         self.tab_wallhaven.setChecked(mode == "wallhaven")
+        self.tab_moewalls.setChecked(mode == "moewalls")
         self.tab_osu.setChecked(mode == "osu")
 
         is_wall = (mode == "wallhaven")
+        is_moe = (mode == "moewalls")
+        is_osu = (mode == "osu")
+
         self.wallhaven_filter_bar.setVisible(is_wall)
-        self.osu_filter_bar.setVisible(not is_wall)
+        self.moe_filter_bar.setVisible(is_moe)
+        self.osu_filter_bar.setVisible(is_osu)
         self.color_toggle_btn.setVisible(is_wall)
         if not is_wall:
             self.color_bar.setVisible(False)
@@ -527,6 +593,8 @@ class MainWindow(QMainWindow):
         self.search_input.clear()
         if is_wall:
             self.search_input.setPlaceholderText(tr("search_placeholder"))
+        elif is_moe:
+            self.search_input.setPlaceholderText(tr("moe_search_placeholder"))
         else:
             self.search_input.setPlaceholderText(tr("osu_search_placeholder"))
 
@@ -619,7 +687,15 @@ class MainWindow(QMainWindow):
 
         query = self.search_input.text().strip()
 
-        if self.current_mode == "osu":
+        if self.current_mode == "moewalls":
+            cat = self.moe_cat_combo.currentData() or "all"
+            self.active_search_worker = MoeSearchWorker(
+                search_id=search_id,
+                query=query,
+                category=cat,
+                page=page,
+            )
+        elif self.current_mode == "osu":
             season = self.osu_season_combo.currentData() or "all"
             theme = self.osu_theme
             sorting = self.osu_sort_combo.currentData() or "votes"
@@ -678,6 +754,8 @@ class MainWindow(QMainWindow):
 
         if self.current_mode == "osu":
             self.total_count_lbl.setText(tr("osu_total_found", total=f"{result.total:,}"))
+        elif self.current_mode == "moewalls":
+            self.total_count_lbl.setText(tr("moe_total_found", total=f"{result.total:,}"))
         else:
             self.total_count_lbl.setText(tr("total_found", total=f"{result.total:,}"))
 
@@ -710,13 +788,18 @@ class MainWindow(QMainWindow):
     def _on_quick_download(self, item: WallpaperItem):
         # User requested quick download from card button
         # Respect user requirement: "Při každém stažení se zeptat dialogem na umístění"
-        ext = os.path.splitext(item.path)[1] or ".jpg"
+        is_animated = getattr(item, "is_animated", False)
+        ext = ".mp4" if is_animated else (os.path.splitext(item.path)[1] or ".jpg")
+
         if getattr(item, "_osu_meta", None):
             meta = item._osu_meta
             artist = "".join(c for c in meta.get("artist", "artist") if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
             title = "".join(c for c in meta.get("title", item.id) if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
             season = "".join(c for c in meta.get("season", "osu") if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
             suggested_name = f"osu-{season}-{artist}-{title}{ext}"
+        elif is_animated:
+            clean_title = "".join(c for c in getattr(item, "_display_title", item.id) if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
+            suggested_name = f"moewalls-{clean_title}{ext}"
         else:
             suggested_name = f"wallhaven-{item.id}{ext}"
 
@@ -724,11 +807,12 @@ class MainWindow(QMainWindow):
         default_dir.mkdir(parents=True, exist_ok=True)
         initial_path = str(default_dir / suggested_name)
 
+        filter_str = "Video (*.mp4 *.webm);;All Files (*)" if is_animated else tr("images_filter", ext=ext)
         save_path, _ = QFileDialog.getSaveFileName(
             self,
             tr("save_dialog_title"),
             initial_path,
-            tr("images_filter", ext=ext),
+            filter_str,
         )
 
         if not save_path:
@@ -736,7 +820,7 @@ class MainWindow(QMainWindow):
 
         self.status_bar.showMessage(tr("status_downloading", id=item.id, filename=os.path.basename(save_path)))
 
-        self.quick_download_worker = DownloadWorker(item.path, save_path)
+        self.quick_download_worker = DownloadWorker(item, save_path)
         self.quick_download_worker.progress.connect(
             lambda cur, tot: self.status_bar.showMessage(
                 tr("status_download_progress", id=item.id, cur=cur // (1024 * 1024), tot=tot // (1024 * 1024))
@@ -753,7 +837,12 @@ class MainWindow(QMainWindow):
     def _on_download_completed(self, path: str):
         filename = os.path.basename(path)
         if config.auto_set_wallpaper:
-            ok, msg = set_desktop_wallpaper(path, config.custom_wallpaper_cmd)
+            ok, msg = set_desktop_wallpaper(
+                path,
+                config.custom_wallpaper_cmd,
+                config.wallpaper_setter,
+                config.custom_video_wallpaper_cmd,
+            )
             if ok:
                 self.status_bar.showMessage(tr("status_download_done_wall", filename=filename), 8000)
             else:

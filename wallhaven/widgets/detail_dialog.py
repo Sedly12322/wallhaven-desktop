@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QMessageBox,
     QCheckBox,
+    QStackedWidget,
 )
 from wallhaven.api import WallpaperItem, api
 from wallhaven.config import config
@@ -23,18 +24,29 @@ from wallhaven.image_loader import loader
 from wallhaven.wallpaper import set_desktop_wallpaper
 from wallhaven.i18n import tr, i18n
 
+try:
+    from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+    from PyQt6.QtMultimediaWidgets import QVideoWidget
+    HAS_MULTIMEDIA = True
+except ImportError:
+    HAS_MULTIMEDIA = False
+
 
 class DetailFetchWorker(QThread):
     finished = pyqtSignal(WallpaperItem)
     failed = pyqtSignal(str)
 
-    def __init__(self, wallpaper_id: str):
+    def __init__(self, item: WallpaperItem):
         super().__init__()
-        self.wallpaper_id = wallpaper_id
+        self.item = item
 
     def run(self):
         try:
-            full_item = api.get_wallpaper_detail(self.wallpaper_id)
+            if getattr(self.item, "is_animated", False) or self.item.source == "MoeWalls":
+                from wallhaven.moewalls import moewalls_manager
+                full_item = moewalls_manager.get_wallpaper_detail(self.item)
+            else:
+                full_item = api.get_wallpaper_detail(self.item.id)
             self.finished.emit(full_item)
         except Exception as e:
             self.failed.emit(str(e))
@@ -45,9 +57,9 @@ class DownloadWorker(QThread):
     finished = pyqtSignal(str)       # saved file path
     failed = pyqtSignal(str)
 
-    def __init__(self, url: str, dest_path: str):
+    def __init__(self, item_or_url: WallpaperItem | str, dest_path: str):
         super().__init__()
-        self.url = url
+        self.item_or_url = item_or_url
         self.dest_path = dest_path
         self._cancelled = False
 
@@ -56,11 +68,26 @@ class DownloadWorker(QThread):
 
     def run(self):
         try:
+            url = ""
+            headers = None
+            if isinstance(self.item_or_url, WallpaperItem):
+                if getattr(self.item_or_url, "is_animated", False):
+                    from wallhaven.moewalls import moewalls_manager
+                    url = moewalls_manager.get_download_url(self.item_or_url)
+                    headers = {"Referer": "https://moewalls.com/"}
+                else:
+                    url = self.item_or_url.path
+            else:
+                url = str(self.item_or_url)
+                if "moewalls.com" in url:
+                    headers = {"Referer": "https://moewalls.com/"}
+
             ok = api.download_file(
-                self.url,
+                url,
                 self.dest_path,
                 progress_callback=lambda d, t: self.progress.emit(d, t),
                 is_cancelled=lambda: self._cancelled,
+                headers=headers,
             )
             if ok:
                 self.finished.emit(self.dest_path)
@@ -78,12 +105,19 @@ class DetailDialog(QDialog):
         super().__init__(parent)
         self.item = item
         self.download_worker: DownloadWorker | None = None
+        self.fetch_worker: DetailFetchWorker | None = None
         self.saved_path: str = ""
+        self.player: QMediaPlayer | None = None
+        self.audio_output: QAudioOutput | None = None
 
         if getattr(self.item, "_osu_meta", None):
             self.setWindowTitle(f"osu! {self.item._osu_meta.get('season', '')} - #{self.item.id} ({self.item.resolution})")
+        elif getattr(self.item, "is_animated", False):
+            title = getattr(self.item, "_display_title", self.item.id)
+            self.setWindowTitle(f"🎬 {title} ({self.item.resolution}) - Live Wallpaper")
         else:
             self.setWindowTitle(tr("detail_title", id=item.id, res=item.resolution))
+
         self.resize(1100, 720)
         self.setMinimumSize(850, 550)
 
@@ -97,16 +131,89 @@ class DetailDialog(QDialog):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(16)
 
-        # Left: Large Preview Container
+        # Left: Large Preview Container with StackedWidget (Index 0: Image, Index 1: Video)
         preview_container = QFrame()
         preview_container.setStyleSheet("background-color: #12141a; border-radius: 8px;")
         preview_layout = QVBoxLayout(preview_container)
         preview_layout.setContentsMargins(0, 0, 0, 0)
 
+        self.preview_stack = QStackedWidget()
+        preview_layout.addWidget(self.preview_stack)
+
+        # Page 0: Static image label
         self.preview_label = QLabel(tr("detail_loading_preview"))
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet("color: #64748b; font-size: 14px;")
-        preview_layout.addWidget(self.preview_label)
+        self.preview_stack.addWidget(self.preview_label)
+
+        # Page 1: Video player if multimedia available
+        if HAS_MULTIMEDIA and getattr(self.item, "is_animated", False):
+            video_box = QWidget()
+            v_layout = QVBoxLayout(video_box)
+            v_layout.setContentsMargins(0, 0, 0, 0)
+            v_layout.setSpacing(6)
+
+            self.video_widget = QVideoWidget()
+            self.video_widget.setStyleSheet("background-color: #000000; border-radius: 8px;")
+            v_layout.addWidget(self.video_widget, stretch=1)
+
+            # Video Controls Bar
+            controls = QHBoxLayout()
+            controls.setContentsMargins(8, 0, 8, 8)
+            controls.setSpacing(8)
+
+            self.play_pause_btn = QPushButton("⏸ Pozastavit")
+            self.play_pause_btn.setFixedHeight(28)
+            self.play_pause_btn.setStyleSheet("""
+                QPushButton {
+                    background: #1e293b;
+                    color: #e2e8f0;
+                    border: 1px solid #334155;
+                    border-radius: 4px;
+                    padding: 2px 10px;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background: #334155;
+                }
+            """)
+            self.play_pause_btn.clicked.connect(self._toggle_playback)
+            controls.addWidget(self.play_pause_btn)
+
+            self.mute_btn = QPushButton("🔇 Zvuk vypnut")
+            self.mute_btn.setFixedHeight(28)
+            self.mute_btn.setStyleSheet("""
+                QPushButton {
+                    background: #1e293b;
+                    color: #e2e8f0;
+                    border: 1px solid #334155;
+                    border-radius: 4px;
+                    padding: 2px 10px;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background: #334155;
+                }
+            """)
+            self.mute_btn.clicked.connect(self._toggle_mute)
+            controls.addWidget(self.mute_btn)
+
+            controls.addStretch()
+
+            live_tag = QLabel("🎬 ŽIVÝ NÁHLED (LOOP)")
+            live_tag.setStyleSheet("color: #06b6d4; font-size: 11px; font-weight: bold;")
+            controls.addWidget(live_tag)
+
+            v_layout.addLayout(controls)
+            self.preview_stack.addWidget(video_box)
+
+            # Initialize QMediaPlayer
+            self.player = QMediaPlayer()
+            self.audio_output = QAudioOutput()
+            self.player.setAudioOutput(self.audio_output)
+            self.player.setVideoOutput(self.video_widget)
+            self.audio_output.setMuted(True)
+            self.player.setLoops(QMediaPlayer.Loops.Infinite)
 
         main_layout.addWidget(preview_container, stretch=3)
 
@@ -129,13 +236,17 @@ class DetailDialog(QDialog):
         sidebar_layout.setSpacing(12)
         sidebar_layout.setContentsMargins(12, 12, 12, 12)
 
-        # 1. Wallpaper ID and Wallhaven link
+        # 1. Title / Header Row
         id_row = QHBoxLayout()
         if getattr(self.item, "_osu_meta", None):
             meta = self.item._osu_meta
             title = meta.get("title", f"#{self.item.id}")
             artist = meta.get("artist", "")
             id_lbl = QLabel(f"<b>{title}</b><br><span style='color: #a5b4fc; font-size: 11px;'>by {artist}</span>")
+            id_lbl.setWordWrap(True)
+        elif getattr(self.item, "is_animated", False):
+            title = getattr(self.item, "_display_title", self.item.id)
+            id_lbl = QLabel(f"<b>{title}</b><br><span style='color: #38bdf8; font-size: 11px;'>🎬 MoeWalls Live Wallpaper</span>")
             id_lbl.setWordWrap(True)
         else:
             id_lbl = QLabel(f"<b>#{self.item.id}</b>")
@@ -149,7 +260,7 @@ class DetailDialog(QDialog):
         id_row.addWidget(self.open_web_btn)
         sidebar_layout.addLayout(id_row)
 
-        # 2. Download & Action Section (Prominent at top)
+        # 2. Download & Action Section
         self.dl_frame = QFrame()
         self.dl_frame.setObjectName("downloadPanel")
         self.dl_frame.setStyleSheet("""
@@ -265,11 +376,7 @@ class DetailDialog(QDialog):
             }
             QPushButton:hover {
                 background-color: #334155;
-                border-color: #94a3b8;
-                color: #ffffff;
-            }
-            QPushButton:pressed {
-                background-color: #0f172a;
+                border-color: #64748b;
             }
         """)
         self.open_folder_btn.clicked.connect(self._on_open_folder)
@@ -282,13 +389,13 @@ class DetailDialog(QDialog):
         self.meta_frame.setObjectName("metaFrame")
         self.meta_frame.setStyleSheet("""
             QFrame#metaFrame {
-                background: #21242d;
+                background: #181a21;
+                border-radius: 6px;
                 border: 1px solid #2d313b;
-                border-radius: 8px;
             }
         """)
         meta_layout = QVBoxLayout(self.meta_frame)
-        meta_layout.setContentsMargins(10, 10, 10, 10)
+        meta_layout.setContentsMargins(10, 8, 10, 8)
         meta_layout.setSpacing(6)
 
         self.meta_labels = {}
@@ -307,16 +414,23 @@ class DetailDialog(QDialog):
 
         add_meta_row("resolution", tr("meta_resolution"), self.item.resolution)
         add_meta_row("ratio", tr("meta_ratio"), self.item.ratio)
-        add_meta_row("file_size", tr("meta_file_size"), self.item.human_file_size)
-        add_meta_row("format", tr("meta_format"), self.item.file_type or "image/jpeg")
-        add_meta_row("category", tr("meta_category"), self.item.category.capitalize())
-        add_meta_row("purity", tr("meta_purity"), self.item.purity.upper())
-        add_meta_row("views", tr("meta_views"), f"{self.item.views:,}")
-        add_meta_row("favorites", tr("meta_favorites"), f"★ {self.item.favorites:,}")
+        if getattr(self.item, "is_animated", False):
+            add_meta_row("format", tr("meta_format"), "MP4 (Video 60fps)")
+            add_meta_row("category", tr("meta_category"), self.item.category.capitalize())
+            add_meta_row("source", "Zdroj / Provider", "MoeWalls Live")
+        else:
+            add_meta_row("file_size", tr("meta_file_size"), self.item.human_file_size)
+            add_meta_row("format", tr("meta_format"), self.item.file_type or "image/jpeg")
+            add_meta_row("category", tr("meta_category"), self.item.category.capitalize())
+            add_meta_row("purity", tr("meta_purity"), self.item.purity.upper())
+            if self.item.views > 0:
+                add_meta_row("views", tr("meta_views"), f"{self.item.views:,}")
+            if self.item.favorites > 0:
+                add_meta_row("favorites", tr("meta_favorites"), f"★ {self.item.favorites:,}")
 
         sidebar_layout.addWidget(self.meta_frame)
 
-        # 4. Color Palette
+        # 4. Color Palette (Wallhaven)
         if self.item.colors:
             self.colors_title_lbl = QLabel(tr("meta_palette"))
             self.colors_title_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
@@ -360,9 +474,32 @@ class DetailDialog(QDialog):
         sidebar_scroll.setWidget(sidebar)
         main_layout.addWidget(sidebar_scroll)
 
+    def _toggle_playback(self):
+        if not self.player:
+            return
+        if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self.player.pause()
+            self.play_pause_btn.setText("▶ Přehrát")
+        else:
+            self.player.play()
+            self.play_pause_btn.setText("⏸ Pozastavit")
+
+    def _toggle_mute(self):
+        if not self.audio_output:
+            return
+        is_muted = self.audio_output.isMuted()
+        self.audio_output.setMuted(not is_muted)
+        if not is_muted:
+            self.mute_btn.setText("🔇 Zvuk vypnut")
+        else:
+            self.mute_btn.setText("🔊 Zvuk zapnut")
+
     def retranslate_ui(self):
         if getattr(self.item, "_osu_meta", None):
             self.setWindowTitle(f"osu! {self.item._osu_meta.get('season', '')} - #{self.item.id} ({self.item.resolution})")
+        elif getattr(self.item, "is_animated", False):
+            title = getattr(self.item, "_display_title", self.item.id)
+            self.setWindowTitle(f"🎬 {title} ({self.item.resolution}) - Live Wallpaper")
         else:
             self.setWindowTitle(tr("detail_title", id=self.item.id, res=self.item.resolution))
         self.open_web_btn.setText(tr("detail_open_web"))
@@ -420,7 +557,15 @@ class DetailDialog(QDialog):
 
     def closeEvent(self, event):
         self._cleanup_signal()
+        if self.player:
+            self.player.stop()
         super().closeEvent(event)
+
+    def reject(self):
+        self._cleanup_signal()
+        if self.player:
+            self.player.stop()
+        super().reject()
 
     def _update_preview(self, pixmap: QPixmap):
         lbl_size = self.preview_label.size()
@@ -442,16 +587,26 @@ class DetailDialog(QDialog):
             self._update_preview(pm)
 
     def _fetch_full_details(self):
-        if getattr(self.item, "_osu_meta", None) or (self.item.tags and not self.item.id.isdigit()):
+        if getattr(self.item, "_osu_meta", None):
             self._on_details_fetched(self.item)
             return
-        self.fetch_worker = DetailFetchWorker(self.item.id)
+        self.fetch_worker = DetailFetchWorker(self.item)
         self.fetch_worker.finished.connect(self._on_details_fetched)
         self.fetch_worker.failed.connect(lambda err: self.tags_status_lbl.setText(tr("tags_unavailable")))
         self.fetch_worker.start()
 
     def _on_details_fetched(self, full_item: WallpaperItem):
         self.item = full_item
+
+        # If animated wallpaper and has preview video URL, switch to video view!
+        if HAS_MULTIMEDIA and getattr(full_item, "is_animated", False) and full_item.preview_video_url and self.player:
+            try:
+                self.player.setSource(QUrl(full_item.preview_video_url))
+                self.player.play()
+                self.preview_stack.setCurrentIndex(1)
+            except Exception as e:
+                print(f"Error starting video preview: {e}")
+
         while self.tags_layout.count():
             child = self.tags_layout.takeAt(0)
             if child.widget():
@@ -496,24 +651,31 @@ class DetailDialog(QDialog):
             QDesktopServices.openUrl(QUrl(self.item.url))
 
     def _on_download_clicked(self):
-        ext = os.path.splitext(self.item.path)[1] or ".jpg"
+        is_animated = getattr(self.item, "is_animated", False)
+        ext = ".mp4" if is_animated else (os.path.splitext(self.item.path)[1] or ".jpg")
+
         if getattr(self.item, "_osu_meta", None):
             meta = self.item._osu_meta
             artist = "".join(c for c in meta.get("artist", "artist") if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
             title = "".join(c for c in meta.get("title", self.item.id) if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
             season = "".join(c for c in meta.get("season", "osu") if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
             suggested_name = f"osu-{season}-{artist}-{title}{ext}"
+        elif is_animated:
+            clean_title = "".join(c for c in getattr(self.item, "_display_title", self.item.id) if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_")
+            suggested_name = f"moewalls-{clean_title}{ext}"
         else:
             suggested_name = f"wallhaven-{self.item.id}{ext}"
+
         default_dir = Path(config.default_download_dir)
         default_dir.mkdir(parents=True, exist_ok=True)
         initial_path = str(default_dir / suggested_name)
 
+        filter_str = "Video (*.mp4 *.webm);;All Files (*)" if is_animated else tr("images_filter", ext=ext)
         save_path, _ = QFileDialog.getSaveFileName(
             self,
             tr("save_dialog_title"),
             initial_path,
-            tr("images_filter", ext=ext),
+            filter_str,
         )
 
         if not save_path:
@@ -525,7 +687,7 @@ class DetailDialog(QDialog):
         self.dl_status_lbl.setVisible(True)
         self.dl_status_lbl.setText(tr("download_progress_start"))
 
-        self.download_worker = DownloadWorker(self.item.path, save_path)
+        self.download_worker = DownloadWorker(self.item, save_path)
         self.download_worker.progress.connect(self._on_download_progress)
         self.download_worker.finished.connect(self._on_download_finished)
         self.download_worker.failed.connect(self._on_download_failed)
@@ -562,7 +724,12 @@ class DetailDialog(QDialog):
 
         # Automatically set desktop wallpaper if requested
         if self.set_wall_cb.isChecked():
-            ok, msg = set_desktop_wallpaper(saved_path, config.custom_wallpaper_cmd)
+            ok, msg = set_desktop_wallpaper(
+                saved_path,
+                config.custom_wallpaper_cmd,
+                config.wallpaper_setter,
+                config.custom_video_wallpaper_cmd,
+            )
             if ok:
                 self.dl_status_lbl.setText(tr("download_status_set"))
                 self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 12px; font-weight: bold;")
@@ -580,7 +747,12 @@ class DetailDialog(QDialog):
 
     def _on_set_wall_now(self):
         if self.saved_path and os.path.exists(self.saved_path):
-            ok, msg = set_desktop_wallpaper(self.saved_path, config.custom_wallpaper_cmd)
+            ok, msg = set_desktop_wallpaper(
+                self.saved_path,
+                config.custom_wallpaper_cmd,
+                config.wallpaper_setter,
+                config.custom_video_wallpaper_cmd,
+            )
             if ok:
                 self.dl_status_lbl.setText(tr("download_status_set"))
                 self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 12px; font-weight: bold;")
