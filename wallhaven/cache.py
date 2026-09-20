@@ -88,5 +88,9 @@ class ImageCache:
         except Exception as e:
             print(f"Error cleaning cache: {e}")
 
+    def get_video_thumb_path(self, video_path: str) -> Path:
+        hash_str = hashlib.sha256(str(video_path).encode("utf-8")).hexdigest()
+        return THUMB_CACHE_DIR / f"vid_{hash_str}.jpg"
+
 
 cache = ImageCache()

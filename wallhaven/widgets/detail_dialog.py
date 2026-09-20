@@ -100,6 +100,7 @@ class DownloadWorker(QThread):
 class DetailDialog(QDialog):
     tag_clicked = pyqtSignal(str)
     download_completed = pyqtSignal(str)
+    uninstalled = pyqtSignal(WallpaperItem)
 
     def __init__(self, item: WallpaperItem, parent=None):
         super().__init__(parent)
@@ -122,6 +123,7 @@ class DetailDialog(QDialog):
         self.setMinimumSize(850, 550)
 
         self._init_ui()
+        self._check_installed_state()
         self._load_preview()
         self._fetch_full_details()
         i18n.language_changed.connect(self.retranslate_ui)
@@ -382,6 +384,32 @@ class DetailDialog(QDialog):
         self.open_folder_btn.clicked.connect(self._on_open_folder)
         dl_layout.addWidget(self.open_folder_btn)
 
+        self.uninstall_btn = QPushButton(tr("uninstall_button_full"))
+        self.uninstall_btn.setFixedHeight(36)
+        self.uninstall_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.uninstall_btn.setVisible(False)
+        self.uninstall_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #7f1d1d;
+                color: #fecaca;
+                border: 1px solid #ef4444;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background-color: #991b1b;
+                border-color: #f87171;
+                color: #ffffff;
+            }
+            QPushButton:pressed {
+                background-color: #450a0a;
+            }
+        """)
+        self.uninstall_btn.clicked.connect(self._on_uninstall_clicked)
+        dl_layout.addWidget(self.uninstall_btn)
+
         sidebar_layout.addWidget(self.dl_frame)
 
         # 3. Metadata Frame
@@ -510,6 +538,7 @@ class DetailDialog(QDialog):
         self.set_wall_cb.setText(tr("set_wall_checkbox"))
         self.set_wall_now_btn.setText(tr("set_wall_now_button"))
         self.open_folder_btn.setText(tr("open_folder_button"))
+        self.uninstall_btn.setText(tr("uninstall_button_full"))
         self.tags_title_lbl.setText(tr("tags_title"))
 
         if hasattr(self, "colors_title_lbl") and self.colors_title_lbl:
@@ -743,7 +772,89 @@ class DetailDialog(QDialog):
         self.dl_status_lbl.setVisible(True)
         self.set_wall_now_btn.setVisible(True)
         self.open_folder_btn.setVisible(True)
+        self.uninstall_btn.setVisible(True)
+
+        try:
+            from wallhaven.installed import installed_manager
+            installed_manager.register_download(saved_path, self.item)
+        except Exception as e:
+            print(f"Error registering installed download: {e}")
+
         self.download_completed.emit(saved_path)
+
+    def _check_installed_state(self):
+        try:
+            from wallhaven.installed import installed_manager
+            installed_path = installed_manager.get_installed_path(self.item)
+            if not installed_path and getattr(self.item, "is_installed", False):
+                installed_path = self.item.path
+            if installed_path and os.path.exists(installed_path):
+                self.saved_path = installed_path
+                self.set_wall_now_btn.setVisible(True)
+                self.open_folder_btn.setVisible(True)
+                self.uninstall_btn.setVisible(True)
+                self.set_wall_cb.setVisible(False)
+                self.dl_btn.setText("✓ " + tr("download_status_installed"))
+                self.dl_btn.setEnabled(False)
+                self.dl_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #059669;
+                        color: #ffffff;
+                        font-weight: bold;
+                        font-size: 13px;
+                        border: 1px solid #10b981;
+                        border-radius: 8px;
+                    }
+                """)
+                self.dl_status_lbl.setText(tr("download_status_saved", filename=os.path.basename(installed_path)))
+                self.dl_status_lbl.setStyleSheet("color: #34d399; font-size: 12px;")
+                self.dl_status_lbl.setVisible(True)
+                if HAS_MULTIMEDIA and getattr(self.item, "is_animated", False) and self.player:
+                    try:
+                        self.player.setSource(QUrl.fromLocalFile(installed_path))
+                        self.player.play()
+                        self.preview_stack.setCurrentIndex(1)
+                    except Exception as e:
+                        print(f"Error starting local video preview: {e}")
+        except Exception as e:
+            print(f"Error checking installed state: {e}")
+
+    def _on_uninstall_clicked(self):
+        title = getattr(self.item, "_display_title", "") or f"Wallpaper #{self.item.id}"
+        target_path = self.saved_path or self.item.path
+        filename = os.path.basename(target_path) if target_path else self.item.id
+
+        res = QMessageBox.question(
+            self,
+            tr("confirm_uninstall_title"),
+            tr("confirm_uninstall_msg", title=title, filename=filename),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if res == QMessageBox.StandardButton.Yes:
+            try:
+                from wallhaven.installed import installed_manager
+                ok, err = installed_manager.uninstall_wallpaper(target_path or self.item)
+                if ok:
+                    QMessageBox.information(
+                        self,
+                        tr("uninstall_success_title"),
+                        tr("uninstall_success_msg", title=title),
+                    )
+                    self.uninstalled.emit(self.item)
+                    self.accept()
+                else:
+                    QMessageBox.critical(
+                        self,
+                        tr("uninstall_error_title"),
+                        tr("uninstall_error_msg", error=err),
+                    )
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    tr("uninstall_error_title"),
+                    tr("uninstall_error_msg", error=str(e)),
+                )
 
     def _on_set_wall_now(self):
         if self.saved_path and os.path.exists(self.saved_path):

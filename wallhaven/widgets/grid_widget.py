@@ -7,6 +7,8 @@ from wallhaven.widgets.wallpaper_card import WallpaperCard
 class WallpaperGridWidget(QWidget):
     card_clicked = pyqtSignal(WallpaperItem)
     download_requested = pyqtSignal(WallpaperItem)
+    uninstall_requested = pyqtSignal(WallpaperItem)
+    set_wall_requested = pyqtSignal(WallpaperItem)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -28,6 +30,8 @@ class WallpaperGridWidget(QWidget):
             card = WallpaperCard(item)
             card.clicked.connect(self.card_clicked)
             card.download_requested.connect(self.download_requested)
+            card.uninstall_requested.connect(self.uninstall_requested)
+            card.set_wall_requested.connect(self.set_wall_requested)
             self.cards.append(card)
 
         self._relayout()

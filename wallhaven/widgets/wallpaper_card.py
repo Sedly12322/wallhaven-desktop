@@ -16,6 +16,8 @@ from wallhaven.i18n import tr
 class WallpaperCard(QFrame):
     clicked = pyqtSignal(WallpaperItem)
     download_requested = pyqtSignal(WallpaperItem)
+    uninstall_requested = pyqtSignal(WallpaperItem)
+    set_wall_requested = pyqtSignal(WallpaperItem)
 
     CARD_WIDTH = 290
     CARD_HEIGHT = 220
@@ -77,7 +79,14 @@ class WallpaperCard(QFrame):
         info_row.addWidget(self.res_badge)
 
         # Category badge
-        if getattr(self.item, "_osu_meta", None):
+        is_installed = getattr(self.item, "is_installed", False)
+        if is_installed:
+            cat_badge = QLabel(self.item.source or "Installed")
+            tooltip_text = f"{getattr(self.item, '_display_title', self.item.id)}\n{self.item.resolution} • {self.item.human_file_size}"
+            if self.item.path:
+                tooltip_text += f"\n{self.item.path}"
+            self.setToolTip(tooltip_text)
+        elif getattr(self.item, "_osu_meta", None):
             meta = self.item._osu_meta
             cat_badge = QLabel(meta.get("theme") or "osu!")
             rank = meta.get("rank", 0)
@@ -111,32 +120,76 @@ class WallpaperCard(QFrame):
             fav_lbl.setStyleSheet("color: #fbbf24; font-size: 11px;")
             info_row.addWidget(fav_lbl)
 
-        # Quick download button
-        self.dl_btn = QPushButton("⬇")
-        self.dl_btn.setFixedSize(26, 24)
-        self.dl_btn.setToolTip(tr("card_download_tooltip"))
-        self.dl_btn.setStyleSheet("""
-            QPushButton {
-                background: #4f46e5;
-                color: #ffffff;
-                border: none;
-                border-radius: 5px;
-                font-size: 12px;
-                font-weight: bold;
-                padding: 0;
-            }
-            QPushButton:hover {
-                background: #6366f1;
-            }
-        """)
-        self.dl_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.dl_btn.clicked.connect(self._on_download_clicked)
-        info_row.addWidget(self.dl_btn)
+        # Action Buttons
+        if is_installed:
+            # Set wallpaper button
+            self.set_wall_btn = QPushButton("🖼️")
+            self.set_wall_btn.setFixedSize(26, 24)
+            self.set_wall_btn.setToolTip(tr("card_set_wall_tooltip"))
+            self.set_wall_btn.setStyleSheet("""
+                QPushButton {
+                    background: #059669;
+                    color: #ffffff;
+                    border: none;
+                    border-radius: 5px;
+                    font-size: 12px;
+                    padding: 0;
+                }
+                QPushButton:hover {
+                    background: #10b981;
+                }
+            """)
+            self.set_wall_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.set_wall_btn.clicked.connect(lambda: self.set_wall_requested.emit(self.item))
+            info_row.addWidget(self.set_wall_btn)
+
+            # Uninstall button
+            self.uninstall_btn = QPushButton("🗑️")
+            self.uninstall_btn.setFixedSize(26, 24)
+            self.uninstall_btn.setToolTip(tr("card_uninstall_tooltip"))
+            self.uninstall_btn.setStyleSheet("""
+                QPushButton {
+                    background: #dc2626;
+                    color: #ffffff;
+                    border: none;
+                    border-radius: 5px;
+                    font-size: 12px;
+                    padding: 0;
+                }
+                QPushButton:hover {
+                    background: #ef4444;
+                }
+            """)
+            self.uninstall_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.uninstall_btn.clicked.connect(lambda: self.uninstall_requested.emit(self.item))
+            info_row.addWidget(self.uninstall_btn)
+        else:
+            # Quick download button
+            self.dl_btn = QPushButton("⬇")
+            self.dl_btn.setFixedSize(26, 24)
+            self.dl_btn.setToolTip(tr("card_download_tooltip"))
+            self.dl_btn.setStyleSheet("""
+                QPushButton {
+                    background: #4f46e5;
+                    color: #ffffff;
+                    border: none;
+                    border-radius: 5px;
+                    font-size: 12px;
+                    font-weight: bold;
+                    padding: 0;
+                }
+                QPushButton:hover {
+                    background: #6366f1;
+                }
+            """)
+            self.dl_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.dl_btn.clicked.connect(self._on_download_clicked)
+            info_row.addWidget(self.dl_btn)
 
         layout.addLayout(info_row)
 
     def _load_thumbnail(self):
-        thumb_url = self.item.thumb_large or self.item.thumb_small
+        thumb_url = self.item.thumb_large or self.item.thumb_small or self.item.path
         if not thumb_url:
             self.image_label.setText(tr("card_no_preview"))
             return
@@ -201,7 +254,15 @@ class WallpaperCard(QFrame):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            # Check if clicked inside download button
-            if not self.dl_btn.geometry().contains(event.pos()):
+            pos = event.pos()
+            btn_clicked = False
+            if hasattr(self, "dl_btn") and self.dl_btn.geometry().contains(pos):
+                btn_clicked = True
+            elif hasattr(self, "set_wall_btn") and self.set_wall_btn.geometry().contains(pos):
+                btn_clicked = True
+            elif hasattr(self, "uninstall_btn") and self.uninstall_btn.geometry().contains(pos):
+                btn_clicked = True
+
+            if not btn_clicked:
                 self.clicked.emit(self.item)
         super().mousePressEvent(event)

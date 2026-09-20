@@ -1,3 +1,4 @@
+import os
 import requests
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QPixmap
@@ -27,6 +28,41 @@ class ImageLoadTask(QRunnable):
             if pixmap and not pixmap.isNull():
                 self.signals.finished.emit(self.url, pixmap)
                 return
+
+            # Check if local file
+            if os.path.exists(self.url):
+                lower = self.url.lower()
+                if lower.endswith((".jpg", ".jpeg", ".png", ".webp", ".bmp")):
+                    pm = QPixmap(self.url)
+                    if pm and not pm.isNull():
+                        self.signals.finished.emit(self.url, pm)
+                        return
+                elif lower.endswith((".mp4", ".webm", ".mkv")):
+                    thumb_path = cache.get_video_thumb_path(self.url)
+                    if thumb_path.exists() and thumb_path.stat().st_size > 0:
+                        pm = QPixmap(str(thumb_path))
+                        if pm and not pm.isNull():
+                            self.signals.finished.emit(self.url, pm)
+                            return
+                    try:
+                        import subprocess
+                        cmd = [
+                            "ffmpeg",
+                            "-ss", "00:00:01",
+                            "-i", self.url,
+                            "-vframes", "1",
+                            "-q:v", "2",
+                            str(thumb_path),
+                            "-y",
+                        ]
+                        res = subprocess.run(cmd, capture_output=True, timeout=5)
+                        if res.returncode == 0 and thumb_path.exists():
+                            pm = QPixmap(str(thumb_path))
+                            if pm and not pm.isNull():
+                                self.signals.finished.emit(self.url, pm)
+                                return
+                    except Exception:
+                        pass
 
             # Download
             resp = requests.get(
@@ -87,6 +123,12 @@ class AsyncImageLoader(QObject):
         if pm and not pm.isNull():
             self.image_loaded.emit(url, pm)
             return True
+
+        if os.path.exists(url) and not url.lower().endswith((".mp4", ".webm", ".mkv")):
+            pm = QPixmap(url)
+            if pm and not pm.isNull():
+                self.image_loaded.emit(url, pm)
+                return True
 
         if url in self._pending_urls:
             return False

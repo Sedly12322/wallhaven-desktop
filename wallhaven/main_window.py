@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QUrl
 from PyQt6.QtGui import QIcon, QDesktopServices
@@ -22,6 +23,7 @@ from PyQt6.QtWidgets import (
 from wallhaven.api import WallpaperItem, SearchResult, api
 from wallhaven.osu import osu_manager
 from wallhaven.moewalls import moewalls_manager
+from wallhaven.installed import installed_manager
 from wallhaven.config import config
 from wallhaven.i18n import tr, i18n
 from wallhaven.widgets.grid_widget import WallpaperGridWidget
@@ -77,6 +79,23 @@ class MoeSearchWorker(QThread):
     def run(self):
         try:
             res = moewalls_manager.search(**self.kwargs)
+            self.finished.emit(self.search_id, res)
+        except Exception as e:
+            self.failed.emit(self.search_id, str(e))
+
+
+class InstalledSearchWorker(QThread):
+    finished = pyqtSignal(int, SearchResult)
+    failed = pyqtSignal(int, str)
+
+    def __init__(self, search_id: int, **kwargs):
+        super().__init__()
+        self.search_id = search_id
+        self.kwargs = kwargs
+
+    def run(self):
+        try:
+            res = installed_manager.search(**self.kwargs)
             self.finished.emit(self.search_id, res)
         except Exception as e:
             self.failed.emit(self.search_id, str(e))
@@ -144,6 +163,14 @@ class MainWindow(QMainWindow):
         self.tab_osu.setCursor(Qt.CursorShape.PointingHandCursor)
         self.tab_osu.clicked.connect(lambda: self._set_mode("osu"))
         tabs_layout.addWidget(self.tab_osu)
+
+        self.tab_installed = QPushButton()
+        self.tab_installed.setObjectName("navTab")
+        self.tab_installed.setCheckable(True)
+        self.tab_installed.setChecked(False)
+        self.tab_installed.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.tab_installed.clicked.connect(lambda: self._set_mode("installed"))
+        tabs_layout.addWidget(self.tab_installed)
 
         h_layout.addLayout(tabs_layout)
 
@@ -351,6 +378,76 @@ class MainWindow(QMainWindow):
         moe_layout.addStretch()
         main_layout.addWidget(self.moe_filter_bar)
 
+        # 2D. Installed Wallpapers Filter Bar
+        self.installed_filter_bar = QFrame()
+        self.installed_filter_bar.setObjectName("filterPanel")
+        self.installed_filter_bar.setVisible(False)
+        inst_layout = QHBoxLayout(self.installed_filter_bar)
+        inst_layout.setContentsMargins(16, 6, 16, 6)
+        inst_layout.setSpacing(10)
+
+        # Provider combo
+        self.inst_prov_lbl = QLabel(tr("installed_provider_label"))
+        self.inst_prov_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        inst_layout.addWidget(self.inst_prov_lbl)
+
+        self.inst_prov_combo = QComboBox()
+        self.inst_prov_combo.currentIndexChanged.connect(lambda: self.perform_search(page=1))
+        inst_layout.addWidget(self.inst_prov_combo)
+
+        inst_layout.addSpacing(8)
+
+        # Type combo
+        self.inst_type_lbl = QLabel(tr("installed_type_label"))
+        self.inst_type_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        inst_layout.addWidget(self.inst_type_lbl)
+
+        self.inst_type_combo = QComboBox()
+        self.inst_type_combo.currentIndexChanged.connect(lambda: self.perform_search(page=1))
+        inst_layout.addWidget(self.inst_type_combo)
+
+        inst_layout.addSpacing(8)
+
+        # Sorting combo
+        self.inst_sort_lbl = QLabel(tr("sorting_label"))
+        self.inst_sort_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        inst_layout.addWidget(self.inst_sort_lbl)
+
+        self.inst_sort_combo = QComboBox()
+        self.inst_sort_combo.currentIndexChanged.connect(lambda: self.perform_search(page=1))
+        inst_layout.addWidget(self.inst_sort_combo)
+
+        inst_layout.addSpacing(12)
+
+        # Open folder button
+        self.inst_open_folder_btn = QPushButton(tr("installed_open_folder"))
+        self.inst_open_folder_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.inst_open_folder_btn.setStyleSheet("""
+            QPushButton {
+                background: #1e293b;
+                color: #e2e8f0;
+                border: 1px solid #334155;
+                border-radius: 5px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background: #334155;
+                color: #ffffff;
+            }
+        """)
+        self.inst_open_folder_btn.clicked.connect(self._open_installed_folder)
+        inst_layout.addWidget(self.inst_open_folder_btn)
+
+        # Stats label
+        self.inst_stats_lbl = QLabel("")
+        self.inst_stats_lbl.setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: bold; margin-left: 8px;")
+        inst_layout.addWidget(self.inst_stats_lbl)
+
+        inst_layout.addStretch()
+        main_layout.addWidget(self.installed_filter_bar)
+
         # 3. Color Bar (Collapsible, Wallhaven only)
         self.color_bar = ColorBar()
         self.color_bar.setVisible(False)
@@ -363,6 +460,8 @@ class MainWindow(QMainWindow):
         self.grid_widget = WallpaperGridWidget()
         self.grid_widget.card_clicked.connect(self._on_card_clicked)
         self.grid_widget.download_requested.connect(self._on_quick_download)
+        self.grid_widget.uninstall_requested.connect(self._on_uninstall_requested)
+        self.grid_widget.set_wall_requested.connect(self._on_quick_set_wallpaper)
         self.scroll_area.setWidget(self.grid_widget)
         main_layout.addWidget(self.scroll_area, stretch=1)
 
@@ -512,16 +611,52 @@ class MainWindow(QMainWindow):
             if key in self.theme_chips:
                 self.theme_chips[key].setText(tr(tr_key))
 
+    def _retranslate_installed_combos(self):
+        def _populate(combo: QComboBox, items: list[tuple[str, str]]):
+            cur = combo.currentData()
+            combo.blockSignals(True)
+            combo.clear()
+            for text, val in items:
+                combo.addItem(text, val)
+            if cur is not None:
+                idx = combo.findData(cur)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+            combo.blockSignals(False)
+
+        _populate(self.inst_prov_combo, [
+            (tr("installed_provider_all"), "all"),
+            (tr("installed_provider_wallhaven"), "wallhaven"),
+            (tr("installed_provider_moewalls"), "moewalls"),
+            (tr("installed_provider_osu"), "osu"),
+        ])
+
+        _populate(self.inst_type_combo, [
+            (tr("installed_type_all"), "all"),
+            (tr("installed_type_image"), "image"),
+            (tr("installed_type_video"), "video"),
+        ])
+
+        _populate(self.inst_sort_combo, [
+            (tr("installed_sort_newest"), "latest"),
+            (tr("installed_sort_oldest"), "oldest"),
+            (tr("installed_sort_name"), "name"),
+            (tr("installed_sort_size"), "size"),
+        ])
+
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
         self.tab_wallhaven.setText(tr("tab_wallhaven"))
         self.tab_moewalls.setText(tr("tab_moewalls"))
         self.tab_osu.setText(tr("tab_osu"))
+        self.tab_installed.setText(tr("tab_installed"))
 
         if self.current_mode == "osu":
             self.search_input.setPlaceholderText(tr("osu_search_placeholder"))
         elif self.current_mode == "moewalls":
             self.search_input.setPlaceholderText(tr("moe_search_placeholder"))
+        elif self.current_mode == "installed":
+            self.search_input.setPlaceholderText(tr("installed_search_placeholder"))
         else:
             self.search_input.setPlaceholderText(tr("search_placeholder"))
 
@@ -549,6 +684,13 @@ class MainWindow(QMainWindow):
         self.osu_sort_lbl.setText(tr("sorting_label"))
         self._retranslate_osu_combos()
 
+        # Installed filter labels
+        self.inst_prov_lbl.setText(tr("installed_provider_label"))
+        self.inst_type_lbl.setText(tr("installed_type_label"))
+        self.inst_sort_lbl.setText(tr("sorting_label"))
+        self.inst_open_folder_btn.setText(tr("installed_open_folder"))
+        self._retranslate_installed_combos()
+
         # Pagination
         self.first_btn.setText(tr("first_page"))
         self.prev_btn.setText(tr("prev_page"))
@@ -562,6 +704,10 @@ class MainWindow(QMainWindow):
             self.total_count_lbl.setText(tr("osu_total_found", total=f"{self.total_count:,}"))
         elif self.current_mode == "moewalls":
             self.total_count_lbl.setText(tr("moe_total_found", total=f"{self.total_count:,}"))
+        elif self.current_mode == "installed":
+            stats = installed_manager.get_stats()
+            self.total_count_lbl.setText(tr("installed_total_found", total=f"{self.total_count:,}", size=stats["human_size"]))
+            self.inst_stats_lbl.setText(f"💾 {stats['human_size']}")
         else:
             self.total_count_lbl.setText(tr("total_found", total=f"{self.total_count:,}"))
 
@@ -570,20 +716,24 @@ class MainWindow(QMainWindow):
             self.tab_wallhaven.setChecked(mode == "wallhaven")
             self.tab_moewalls.setChecked(mode == "moewalls")
             self.tab_osu.setChecked(mode == "osu")
+            self.tab_installed.setChecked(mode == "installed")
             return
 
         self.current_mode = mode
         self.tab_wallhaven.setChecked(mode == "wallhaven")
         self.tab_moewalls.setChecked(mode == "moewalls")
         self.tab_osu.setChecked(mode == "osu")
+        self.tab_installed.setChecked(mode == "installed")
 
         is_wall = (mode == "wallhaven")
         is_moe = (mode == "moewalls")
         is_osu = (mode == "osu")
+        is_inst = (mode == "installed")
 
         self.wallhaven_filter_bar.setVisible(is_wall)
         self.moe_filter_bar.setVisible(is_moe)
         self.osu_filter_bar.setVisible(is_osu)
+        self.installed_filter_bar.setVisible(is_inst)
         self.color_toggle_btn.setVisible(is_wall)
         if not is_wall:
             self.color_bar.setVisible(False)
@@ -595,8 +745,10 @@ class MainWindow(QMainWindow):
             self.search_input.setPlaceholderText(tr("search_placeholder"))
         elif is_moe:
             self.search_input.setPlaceholderText(tr("moe_search_placeholder"))
-        else:
+        elif is_osu:
             self.search_input.setPlaceholderText(tr("osu_search_placeholder"))
+        else:
+            self.search_input.setPlaceholderText(tr("installed_search_placeholder"))
 
         self.perform_search(page=1)
 
@@ -687,7 +839,20 @@ class MainWindow(QMainWindow):
 
         query = self.search_input.text().strip()
 
-        if self.current_mode == "moewalls":
+        if self.current_mode == "installed":
+            prov = self.inst_prov_combo.currentData() or "all"
+            mtype = self.inst_type_combo.currentData() or "all"
+            sorting = self.inst_sort_combo.currentData() or "latest"
+            self.active_search_worker = InstalledSearchWorker(
+                search_id=search_id,
+                query=query,
+                provider=prov,
+                media_type=mtype,
+                sorting=sorting,
+                page=page,
+                per_page=24,
+            )
+        elif self.current_mode == "moewalls":
             cat = self.moe_cat_combo.currentData() or "all"
             self.active_search_worker = MoeSearchWorker(
                 search_id=search_id,
@@ -756,6 +921,10 @@ class MainWindow(QMainWindow):
             self.total_count_lbl.setText(tr("osu_total_found", total=f"{result.total:,}"))
         elif self.current_mode == "moewalls":
             self.total_count_lbl.setText(tr("moe_total_found", total=f"{result.total:,}"))
+        elif self.current_mode == "installed":
+            stats = installed_manager.get_stats()
+            self.total_count_lbl.setText(tr("installed_total_found", total=f"{result.total:,}", size=stats["human_size"]))
+            self.inst_stats_lbl.setText(f"💾 {stats['human_size']}")
         else:
             self.total_count_lbl.setText(tr("total_found", total=f"{result.total:,}"))
 
@@ -777,7 +946,8 @@ class MainWindow(QMainWindow):
     def _on_card_clicked(self, item: WallpaperItem):
         dlg = DetailDialog(item, self)
         dlg.tag_clicked.connect(self._search_by_tag)
-        dlg.download_completed.connect(self._on_download_completed)
+        dlg.download_completed.connect(lambda p: self._on_download_completed(p, item))
+        dlg.uninstalled.connect(lambda it: self.perform_search(page=self.current_page))
         dlg.exec()
 
     def _search_by_tag(self, tag_name: str):
@@ -827,15 +997,21 @@ class MainWindow(QMainWindow):
             )
         )
         self.quick_download_worker.finished.connect(
-            lambda path: self._on_download_completed(path)
+            lambda path, it=item: self._on_download_completed(path, it)
         )
         self.quick_download_worker.failed.connect(
             lambda err: QMessageBox.critical(self, tr("download_failed_title"), tr("download_failed_msg", error=err))
         )
         self.quick_download_worker.start()
 
-    def _on_download_completed(self, path: str):
+    def _on_download_completed(self, path: str, item: WallpaperItem | None = None):
         filename = os.path.basename(path)
+        if item:
+            try:
+                installed_manager.register_download(path, item)
+            except Exception as e:
+                print(f"Error registering downloaded wallpaper: {e}")
+
         if config.auto_set_wallpaper:
             ok, msg = set_desktop_wallpaper(
                 path,
@@ -849,3 +1025,49 @@ class MainWindow(QMainWindow):
                 self.status_bar.showMessage(tr("status_download_fail_wall", filename=filename, error=msg), 8000)
         else:
             self.status_bar.showMessage(tr("status_download_done", filename=filename), 8000)
+
+    def _open_installed_folder(self):
+        folder = config.default_download_dir
+        if os.path.isdir(folder):
+            if sys.platform == "win32":
+                os.startfile(folder)
+            else:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+    def _on_uninstall_requested(self, item: WallpaperItem):
+        title = getattr(item, "_display_title", "") or f"Wallpaper #{item.id}"
+        target_path = getattr(item, "local_path", "") or item.path
+        filename = os.path.basename(target_path) if target_path else item.id
+
+        res = QMessageBox.question(
+            self,
+            tr("confirm_uninstall_title"),
+            tr("confirm_uninstall_msg", title=title, filename=filename),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if res == QMessageBox.StandardButton.Yes:
+            ok, err = installed_manager.uninstall_wallpaper(item)
+            if ok:
+                self.status_bar.showMessage(tr("status_uninstalled", title=title), 6000)
+                self.perform_search(page=self.current_page)
+            else:
+                QMessageBox.critical(self, tr("uninstall_error_title"), tr("uninstall_error_msg", error=err))
+
+    def _on_quick_set_wallpaper(self, item: WallpaperItem):
+        target_path = getattr(item, "local_path", "") or item.path
+        if not target_path or not os.path.exists(target_path):
+            QMessageBox.warning(self, tr("set_wall_error_title"), "File not found on disk.")
+            return
+
+        ok, msg = set_desktop_wallpaper(
+            target_path,
+            config.custom_wallpaper_cmd,
+            config.wallpaper_setter,
+            config.custom_video_wallpaper_cmd,
+        )
+        filename = os.path.basename(target_path)
+        if ok:
+            self.status_bar.showMessage(tr("status_download_done_wall", filename=filename), 8000)
+        else:
+            self.status_bar.showMessage(tr("status_download_fail_wall", filename=filename, error=msg), 8000)

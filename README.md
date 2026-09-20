@@ -143,6 +143,17 @@ makepkg -si
   - Search by artist username, illustration title, or season name.
   - Full metadata with artist credits, vote counts, winner badges, and direct links to official contest pages.
 
+- **💾 Installed Wallpapers & Uninstallation (Správa nainstalovaných tapet):**
+  - Dedicated **`💾 Installed / 💾 Nainstalované`** tab managing all wallpapers downloaded across all providers (**Wallhaven**, **MoeWalls**, and **osu! Seasonal**).
+  - Automatically catalogs and syncs existing wallpapers from your wallpaper directory with offline support.
+  - **Filter by Provider:** All, Wallhaven, MoeWalls Live, osu! Seasonal.
+  - **Filter by Type:** Static Images or Animated Video Wallpapers.
+  - **Sorting:** Newest first, Oldest first, Name (A-Z), and File Size.
+  - **Disk Usage Stats:** Live summary of installed wallpapers and total disk usage (e.g. `156 wallpapers • 436.5 MB`).
+  - **🗑️ Complete Uninstallation:** Safely uninstall and delete wallpapers from your system directly from card buttons or the detail dialog with confirmation.
+  - **🖼️ Quick Desktop Setter:** Set any installed wallpaper to your desktop with one click without downloading again.
+  - **📁 Open in Folder:** One-click button to reveal wallpapers in your system file manager.
+
 - **🔍 Advanced Search & Filtering (Wallhaven):**
   - **Full-text Query:** Search by keywords, `@uploader`, or `#tags`.
   - **Categories:** Toggle *General*, *Anime*, and *People*.
