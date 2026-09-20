@@ -8,6 +8,7 @@
 [![PyQt6](https://img.shields.io/badge/GUI-PyQt6-41CD52?style=for-the-badge&logo=qt&logoColor=white)](https://riverbankcomputing.com/software/pyqt/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/Sedly12322/wallhaven-desktop?style=for-the-badge&logo=github)](https://github.com/Sedly12322/wallhaven-desktop/releases)
+[![GitHub stars](https://img.shields.io/github/stars/Sedly12322/wallhaven-desktop?style=for-the-badge&logo=github&color=gold)](https://github.com/Sedly12322/wallhaven-desktop/stargazers)
 
 **A modern, high-performance desktop wallpaper browser, downloader, and manager for [Wallhaven.cc](https://wallhaven.cc) powered by Python & PyQt6.**  
 Fully supports **Arch Linux** (Wayland / Hyprland / X11) and **Microsoft Windows 10 & 11**.
@@ -191,6 +192,22 @@ sudo pacman -R wallhaven-desktop-git
 
 If installed on Windows:
 - Run the uninstaller from Windows **Settings → Apps → Installed apps**, or launch `unins000.exe` in the installation directory.
+
+---
+
+## 🌟 Star History
+
+<div align="center">
+
+<a href="https://star-history.com/#Sedly12322/wallhaven-desktop&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Sedly12322/wallhaven-desktop&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Sedly12322/wallhaven-desktop&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Sedly12322/wallhaven-desktop&type=Date" />
+ </picture>
+</a>
+
+</div>
 
 ---
 
