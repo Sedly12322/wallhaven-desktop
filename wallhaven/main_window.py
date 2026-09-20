@@ -371,7 +371,18 @@ class MainWindow(QMainWindow):
         self.moe_cat_combo.currentIndexChanged.connect(lambda: self.perform_search(page=1))
         moe_layout.addWidget(self.moe_cat_combo)
 
-        moe_badge = QLabel("🎬 20 000+ 2K / 4K 60FPS Video Wallpapers (MP4)")
+        moe_layout.addSpacing(8)
+
+        self.moe_res_lbl = QLabel(tr("moe_res_label"))
+        self.moe_res_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        moe_layout.addWidget(self.moe_res_lbl)
+
+        self.moe_res_combo = QComboBox()
+        self.moe_res_combo.setMinimumWidth(170)
+        self.moe_res_combo.currentIndexChanged.connect(lambda: self.perform_search(page=1))
+        moe_layout.addWidget(self.moe_res_combo)
+
+        moe_badge = QLabel("🎬 20 000+ Video Wallpapers (MP4)")
         moe_badge.setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: bold; margin-left: 8px;")
         moe_layout.addWidget(moe_badge)
 
@@ -644,6 +655,18 @@ class MainWindow(QMainWindow):
             (tr("installed_sort_size"), "size"),
         ])
 
+    def _retranslate_moe_combos(self):
+        cur_res = self.moe_res_combo.currentData()
+        self.moe_res_combo.blockSignals(True)
+        self.moe_res_combo.clear()
+        for res_id, tr_key in moewalls_manager.get_resolutions():
+            self.moe_res_combo.addItem(tr(tr_key), res_id)
+        if cur_res is not None:
+            idx = self.moe_res_combo.findData(cur_res)
+            if idx >= 0:
+                self.moe_res_combo.setCurrentIndex(idx)
+        self.moe_res_combo.blockSignals(False)
+
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
         self.tab_wallhaven.setText(tr("tab_wallhaven"))
@@ -677,6 +700,8 @@ class MainWindow(QMainWindow):
 
         # MoeWalls filter labels
         self.moe_cat_lbl.setText(tr("moe_category_label"))
+        self.moe_res_lbl.setText(tr("moe_res_label"))
+        self._retranslate_moe_combos()
 
         # osu! filter labels
         self.osu_season_lbl.setText(tr("season_label"))
@@ -854,10 +879,12 @@ class MainWindow(QMainWindow):
             )
         elif self.current_mode == "moewalls":
             cat = self.moe_cat_combo.currentData() or "all"
+            res = self.moe_res_combo.currentData() or "all"
             self.active_search_worker = MoeSearchWorker(
                 search_id=search_id,
                 query=query,
                 category=cat,
+                resolution=res,
                 page=page,
             )
         elif self.current_mode == "osu":

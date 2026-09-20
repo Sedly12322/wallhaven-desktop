@@ -120,7 +120,7 @@ makepkg -si
   - Dedicated tab featuring **20,000+ high-definition 2K / 4K 60FPS animated video wallpapers** from MoeWalls.
   - **Embedded Video Player:** Live preview loop in the detail dialog powered by QtMultimedia & FFmpeg with Play/Pause and Mute toggles.
   - **Direct MP4 Downloads:** Download pristine high-bitrate MP4 files with real-time download progress.
-  - **Category & Keyword Filtering:** Browse Anime, Games, Sci-Fi, Fantasy, Landscape, Pixel Art, Animals, Vehicles, Movies, Lifestyle, Abstract, and full-text search.
+  - **Category, Resolution & Keyword Filtering:** Filter by resolution (**4K UHD 3840×2160**, **2K QHD 2560×1440**, **1080p FHD**, **Ultrawide 21:9 3440×1440**, **Super Ultrawide 32:9 5120×1440**, **Dual 4K 7680×2160**, **720p HD**), category (Anime, Games, Sci-Fi, Fantasy, Landscape, Pixel Art, Animals, Vehicles, Movies, etc.), and full-text search.
   - **Automatic Desktop Setup:** Seamlessly sets video wallpapers using Quickshell, `mpvpaper`, or custom commands.
 
 - **🖼️ Comprehensive Linux & Windows Wallpaper Setting:**

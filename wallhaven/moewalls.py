@@ -24,6 +24,17 @@ CATEGORIES = [
     ("others", "Others"),
 ]
 
+RESOLUTIONS = [
+    ("all", "moe_res_all"),
+    ("3840x2160", "moe_res_4k"),
+    ("2560x1440", "moe_res_2k"),
+    ("1920x1080", "moe_res_1080p"),
+    ("3440x1440", "moe_res_ultrawide"),
+    ("5120x1440", "moe_res_super_ultrawide"),
+    ("7680x2160", "moe_res_dual_4k"),
+    ("1280x720", "moe_res_720p"),
+]
+
 
 class MoeWallsManager:
     def __init__(self):
@@ -38,34 +49,37 @@ class MoeWallsManager:
     def get_categories(self) -> list[tuple[str, str]]:
         return CATEGORIES
 
+    def get_resolutions(self) -> list[tuple[str, str]]:
+        return RESOLUTIONS
+
     def search(
         self,
         query: str = "",
         category: str = "all",
+        resolution: str = "all",
         page: int = 1,
     ) -> SearchResult:
         """
-        Searches or browses MoeWalls animated wallpapers.
+        Searches or browses MoeWalls animated wallpapers with category and resolution filtering.
         Returns SearchResult with WallpaperItem objects having is_animated=True.
         """
         query = query.strip()
         category = category.strip().lower()
+        resolution = resolution.strip().lower()
 
+        base = f"{MOEWALLS_BASE_URL}/page/{page}/" if page > 1 else f"{MOEWALLS_BASE_URL}/"
+        params = {}
         if query:
-            if page > 1:
-                url = f"{MOEWALLS_BASE_URL}/page/{page}/?s={urllib.parse.quote(query)}"
-            else:
-                url = f"{MOEWALLS_BASE_URL}/?s={urllib.parse.quote(query)}"
-        elif category and category != "all":
-            if page > 1:
-                url = f"{MOEWALLS_BASE_URL}/category/{category}/page/{page}/"
-            else:
-                url = f"{MOEWALLS_BASE_URL}/category/{category}/"
+            params["s"] = query
+        if category and category != "all":
+            params["category_name"] = category
+        if resolution and resolution != "all":
+            params["resolutions"] = resolution
+
+        if params:
+            url = f"{base}?{urllib.parse.urlencode(params)}"
         else:
-            if page > 1:
-                url = f"{MOEWALLS_BASE_URL}/page/{page}/"
-            else:
-                url = f"{MOEWALLS_BASE_URL}/"
+            url = base
 
         resp = self.session.get(url, timeout=15)
         resp.raise_for_status()
@@ -95,7 +109,7 @@ class MoeWallsManager:
 
             # 3. Resolution
             m_res = re.search(r'resolutions-(\d+x\d+)', cls)
-            res_str = m_res.group(1) if m_res else "1920x1080"
+            res_str = m_res.group(1) if m_res else ("1920x1080" if resolution == "all" else resolution)
             dim_x, dim_y = (int(x) for x in res_str.split("x")) if "x" in res_str else (1920, 1080)
 
             # 4. Item ID
