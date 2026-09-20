@@ -84,6 +84,31 @@ Ready-to-use binaries are available on the [**GitHub Releases**](https://github.
 
 ---
 
+## 🔄 Updating / Aktualizace
+
+### 🐧 Arch Linux
+To update your existing installation to the latest version:
+```bash
+cd ~/wallhaven-desktop
+git pull
+./install.sh
+```
+*(The script updates the application and Python environment in `~/.local/share/wallhaven-desktop/`. All your settings, API keys, and downloaded wallpapers are automatically preserved).*
+
+If you installed via `makepkg` (Package Manager):
+```bash
+cd ~/wallhaven-desktop
+git pull
+makepkg -si
+```
+
+### 🪟 Microsoft Windows
+- **Installer Version (`.exe`):** Download the latest [**`Wallhaven-Desktop-Setup.exe`**](https://github.com/Sedly12322/wallhaven-desktop/releases/latest) and run it. The installer will automatically update the previous version in place and preserve all your settings and cache.
+- **Portable Version (`.zip`):** Download the latest [**`Wallhaven-Desktop-Portable.zip`**](https://github.com/Sedly12322/wallhaven-desktop/releases/latest) and extract the contents to replace your existing files.
+- **From Source:** Run `git pull` in the repository folder and start with `run.bat`.
+
+---
+
 ## ✨ Features
 
 - **🎨 Modern Dark UI:**
