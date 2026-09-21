@@ -136,6 +136,18 @@ class MainWindow(QMainWindow):
         h_layout.setContentsMargins(16, 8, 16, 8)
         h_layout.setSpacing(12)
 
+        # Brand logo
+        brand_layout = QHBoxLayout()
+        brand_layout.setSpacing(6)
+        brand_icon = QLabel("🖼️")
+        brand_icon.setStyleSheet("font-size: 18px;")
+        brand_layout.addWidget(brand_icon)
+        brand_title = QLabel("WALLHAVEN")
+        brand_title.setStyleSheet("font-size: 13px; font-weight: 900; color: #f8fafc; letter-spacing: 1.5px;")
+        brand_layout.addWidget(brand_title)
+        h_layout.addLayout(brand_layout)
+        h_layout.addSpacing(6)
+
         # Navigation Mode Tabs: [ Wallhaven ] [ osu! Seasonal ]
         tabs_layout = QHBoxLayout()
         tabs_layout.setSpacing(6)
@@ -291,6 +303,30 @@ class MainWindow(QMainWindow):
         self.res_combo = QComboBox()
         self.res_combo.currentIndexChanged.connect(self._on_filter_changed)
         f_layout.addWidget(self.res_combo)
+
+        # Quick Reset Filters button
+        self.reset_filter_btn = QPushButton("↺")
+        self.reset_filter_btn.setToolTip("Resetovat filtry na výchozí")
+        self.reset_filter_btn.setFixedSize(28, 28)
+        self.reset_filter_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1a1e2b;
+                color: #94a3b8;
+                border: 1px solid #282e42;
+                border-radius: 7px;
+                font-weight: bold;
+                font-size: 13px;
+                padding: 0;
+            }
+            QPushButton:hover {
+                background-color: #242a3c;
+                border-color: #6366f1;
+                color: #ffffff;
+            }
+        """)
+        self.reset_filter_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.reset_filter_btn.clicked.connect(self._reset_wallhaven_filters)
+        f_layout.addWidget(self.reset_filter_btn)
 
         f_layout.addStretch()
         main_layout.addWidget(self.wallhaven_filter_bar)
@@ -478,9 +514,9 @@ class MainWindow(QMainWindow):
 
         # 5. Pagination Bar
         self.pagination_frame = QFrame()
-        self.pagination_frame.setObjectName("headerPanel")
+        self.pagination_frame.setObjectName("paginationFrame")
         p_layout = QHBoxLayout(self.pagination_frame)
-        p_layout.setContentsMargins(16, 6, 16, 6)
+        p_layout.setContentsMargins(18, 8, 18, 8)
         p_layout.setSpacing(8)
 
         self.first_btn = QPushButton()
@@ -492,7 +528,14 @@ class MainWindow(QMainWindow):
         p_layout.addWidget(self.prev_btn)
 
         self.page_info_lbl = QLabel()
-        self.page_info_lbl.setStyleSheet("font-weight: bold; color: #f1f5f9; padding: 0 10px;")
+        self.page_info_lbl.setStyleSheet("""
+            background-color: #1a1e2b;
+            border: 1px solid #282e42;
+            border-radius: 8px;
+            font-weight: bold;
+            color: #f8fafc;
+            padding: 4px 14px;
+        """)
         p_layout.addWidget(self.page_info_lbl)
 
         self.next_btn = QPushButton()
@@ -669,25 +712,25 @@ class MainWindow(QMainWindow):
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
-        self.tab_wallhaven.setText(tr("tab_wallhaven"))
-        self.tab_moewalls.setText(tr("tab_moewalls"))
-        self.tab_osu.setText(tr("tab_osu"))
-        self.tab_installed.setText(tr("tab_installed"))
+        self.tab_wallhaven.setText("🌐 " + tr("tab_wallhaven"))
+        self.tab_moewalls.setText("🎬 " + tr("tab_moewalls"))
+        self.tab_osu.setText("🌸 " + tr("tab_osu"))
+        self.tab_installed.setText("💾 " + tr("tab_installed"))
 
         if self.current_mode == "osu":
-            self.search_input.setPlaceholderText(tr("osu_search_placeholder"))
+            self.search_input.setPlaceholderText("🔍 " + tr("osu_search_placeholder"))
         elif self.current_mode == "moewalls":
-            self.search_input.setPlaceholderText(tr("moe_search_placeholder"))
+            self.search_input.setPlaceholderText("🔍 " + tr("moe_search_placeholder"))
         elif self.current_mode == "installed":
-            self.search_input.setPlaceholderText(tr("installed_search_placeholder"))
+            self.search_input.setPlaceholderText("🔍 " + tr("installed_search_placeholder"))
         else:
-            self.search_input.setPlaceholderText(tr("search_placeholder"))
+            self.search_input.setPlaceholderText("🔍 " + tr("search_placeholder"))
 
-        self.search_btn.setText(tr("search_button"))
-        self.color_toggle_btn.setText(tr("colors_button"))
-        self.auto_wall_btn.setText(tr("auto_wallpaper"))
+        self.search_btn.setText("🔍 " + tr("search_button"))
+        self.color_toggle_btn.setText("🎨 " + tr("colors_button"))
+        self.auto_wall_btn.setText("🖼️ " + tr("auto_wallpaper"))
         self.auto_wall_btn.setToolTip(tr("auto_wallpaper_tip"))
-        self.settings_btn.setText(tr("settings_button"))
+        self.settings_btn.setText("⚙️ " + tr("settings_button"))
 
         # Wallhaven filter labels
         self.cat_lbl.setText(tr("categories_label"))
@@ -717,11 +760,11 @@ class MainWindow(QMainWindow):
         self._retranslate_installed_combos()
 
         # Pagination
-        self.first_btn.setText(tr("first_page"))
-        self.prev_btn.setText(tr("prev_page"))
+        self.first_btn.setText("« " + tr("first_page"))
+        self.prev_btn.setText("‹ " + tr("prev_page"))
         self.page_info_lbl.setText(tr("page_info", current=self.current_page, last=self.last_page))
-        self.next_btn.setText(tr("next_page"))
-        self.last_btn.setText(tr("last_page"))
+        self.next_btn.setText(tr("next_page") + " ›")
+        self.last_btn.setText(tr("last_page") + " »")
         self.goto_lbl.setText(tr("goto_page"))
         self.goto_btn.setText(tr("goto_btn"))
 
@@ -803,6 +846,30 @@ class MainWindow(QMainWindow):
         self.perform_search(page=1)
 
     def _on_filter_changed(self):
+        self.perform_search(page=1)
+
+    def _reset_wallhaven_filters(self):
+        self.cat_general.setChecked(True)
+        self.cat_anime.setChecked(True)
+        self.cat_people.setChecked(True)
+        self.pur_sfw.setChecked(True)
+        self.pur_sketchy.setChecked(False)
+        self.pur_nsfw.setChecked(False)
+        idx_sort = self.sort_combo.findData("toplist")
+        if idx_sort >= 0:
+            self.sort_combo.setCurrentIndex(idx_sort)
+        idx_range = self.range_combo.findData("1M")
+        if idx_range >= 0:
+            self.range_combo.setCurrentIndex(idx_range)
+        idx_ratio = self.ratio_combo.findData("")
+        if idx_ratio >= 0:
+            self.ratio_combo.setCurrentIndex(idx_ratio)
+        idx_res = self.res_combo.findData("")
+        if idx_res >= 0:
+            self.res_combo.setCurrentIndex(idx_res)
+        self.color_bar.clear_selection()
+        self.current_color = ""
+        self.search_input.clear()
         self.perform_search(page=1)
 
     def _on_nsfw_clicked(self):

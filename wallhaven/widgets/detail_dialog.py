@@ -129,13 +129,14 @@ class DetailDialog(QDialog):
         i18n.language_changed.connect(self.retranslate_ui)
 
     def _init_ui(self):
+        self.setStyleSheet("QDialog { background-color: #0d1017; color: #f1f5f9; }")
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(16)
 
         # Left: Large Preview Container with StackedWidget (Index 0: Image, Index 1: Video)
         preview_container = QFrame()
-        preview_container.setStyleSheet("background-color: #12141a; border-radius: 8px;")
+        preview_container.setStyleSheet("background-color: #07090d; border: 1px solid #1a1f2c; border-radius: 12px;")
         preview_layout = QVBoxLayout(preview_container)
         preview_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -145,7 +146,7 @@ class DetailDialog(QDialog):
         # Page 0: Static image label
         self.preview_label = QLabel(tr("detail_loading_preview"))
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setStyleSheet("color: #64748b; font-size: 14px;")
+        self.preview_label.setStyleSheet("color: #64748b; font-size: 14px; font-weight: 500;")
         self.preview_stack.addWidget(self.preview_label)
 
         # Page 1: Video player if multimedia available
@@ -156,7 +157,7 @@ class DetailDialog(QDialog):
             v_layout.setSpacing(6)
 
             self.video_widget = QVideoWidget()
-            self.video_widget.setStyleSheet("background-color: #000000; border-radius: 8px;")
+            self.video_widget.setStyleSheet("background-color: #000000; border-radius: 10px;")
             v_layout.addWidget(self.video_widget, stretch=1)
 
             # Video Controls Bar
@@ -168,15 +169,18 @@ class DetailDialog(QDialog):
             self.play_pause_btn.setFixedHeight(28)
             self.play_pause_btn.setStyleSheet("""
                 QPushButton {
-                    background: #1e293b;
+                    background: #191f2d;
                     color: #e2e8f0;
-                    border: 1px solid #334155;
-                    border-radius: 4px;
+                    border: 1px solid #283144;
+                    border-radius: 6px;
                     padding: 2px 10px;
                     font-size: 11px;
+                    font-weight: 600;
                 }
                 QPushButton:hover {
-                    background: #334155;
+                    background: #252e42;
+                    border-color: #3b82f6;
+                    color: #ffffff;
                 }
             """)
             self.play_pause_btn.clicked.connect(self._toggle_playback)
@@ -186,15 +190,18 @@ class DetailDialog(QDialog):
             self.mute_btn.setFixedHeight(28)
             self.mute_btn.setStyleSheet("""
                 QPushButton {
-                    background: #1e293b;
+                    background: #191f2d;
                     color: #e2e8f0;
-                    border: 1px solid #334155;
-                    border-radius: 4px;
+                    border: 1px solid #283144;
+                    border-radius: 6px;
                     padding: 2px 10px;
                     font-size: 11px;
+                    font-weight: 600;
                 }
                 QPushButton:hover {
-                    background: #334155;
+                    background: #252e42;
+                    border-color: #3b82f6;
+                    color: #ffffff;
                 }
             """)
             self.mute_btn.clicked.connect(self._toggle_mute)
@@ -233,7 +240,7 @@ class DetailDialog(QDialog):
         """)
 
         sidebar = QWidget()
-        sidebar.setStyleSheet("background-color: #1a1d24; border-radius: 8px;")
+        sidebar.setStyleSheet("background-color: #10141d; border: 1px solid #1c2230; border-radius: 12px;")
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setSpacing(12)
         sidebar_layout.setContentsMargins(12, 12, 12, 12)
@@ -244,19 +251,33 @@ class DetailDialog(QDialog):
             meta = self.item._osu_meta
             title = meta.get("title", f"#{self.item.id}")
             artist = meta.get("artist", "")
-            id_lbl = QLabel(f"<b>{title}</b><br><span style='color: #a5b4fc; font-size: 11px;'>by {artist}</span>")
+            id_lbl = QLabel(f"<span style='font-size: 15px; font-weight: bold; color: #ffffff;'>{title}</span><br><span style='color: #818cf8; font-size: 11px;'>🎵 {artist}</span>")
             id_lbl.setWordWrap(True)
         elif getattr(self.item, "is_animated", False):
             title = getattr(self.item, "_display_title", self.item.id)
-            id_lbl = QLabel(f"<b>{title}</b><br><span style='color: #38bdf8; font-size: 11px;'>🎬 MoeWalls Live Wallpaper</span>")
+            id_lbl = QLabel(f"<span style='font-size: 15px; font-weight: bold; color: #ffffff;'>{title}</span><br><span style='color: #06b6d4; font-size: 11px;'>🎬 MoeWalls Live Video</span>")
             id_lbl.setWordWrap(True)
         else:
-            id_lbl = QLabel(f"<b>#{self.item.id}</b>")
-        id_lbl.setStyleSheet("font-size: 15px; color: #ffffff;")
+            id_lbl = QLabel(f"<span style='font-size: 16px; font-weight: bold; color: #ffffff;'>Wallhaven #{self.item.id}</span>")
         id_row.addWidget(id_lbl, stretch=1)
 
         self.open_web_btn = QPushButton(tr("detail_open_web"))
-        self.open_web_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
+        self.open_web_btn.setStyleSheet("""
+            QPushButton {
+                background: #191f2d;
+                color: #94a3b8;
+                border: 1px solid #283144;
+                border-radius: 6px;
+                font-size: 11px;
+                padding: 4px 8px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: #252e42;
+                color: #ffffff;
+                border-color: #3b82f6;
+            }
+        """)
         self.open_web_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.open_web_btn.clicked.connect(self._open_in_browser)
         id_row.addWidget(self.open_web_btn)
@@ -267,9 +288,9 @@ class DetailDialog(QDialog):
         self.dl_frame.setObjectName("downloadPanel")
         self.dl_frame.setStyleSheet("""
             QFrame#downloadPanel {
-                background: #21242d;
-                border: 1px solid #333845;
-                border-radius: 8px;
+                background: #141824;
+                border: 1px solid #232a3b;
+                border-radius: 10px;
             }
         """)
         dl_layout = QVBoxLayout(self.dl_frame)
@@ -281,21 +302,22 @@ class DetailDialog(QDialog):
         self.dl_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.dl_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4f46e5;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6366f1, stop:1 #4f46e5);
                 color: #ffffff;
                 font-weight: bold;
                 font-size: 13px;
-                border: 1px solid #6366f1;
+                border: none;
                 border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: #4338ca;
-                border-color: #818cf8;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #818cf8, stop:1 #6366f1);
+            }
+            QPushButton:pressed {
+                background: #4338ca;
             }
             QPushButton:disabled {
-                background-color: #3730a3;
-                color: #94a3b8;
-                border-color: #3730a3;
+                background: #232a3b;
+                color: #64748b;
             }
         """)
         self.dl_btn.clicked.connect(self._on_download_clicked)
@@ -307,17 +329,18 @@ class DetailDialog(QDialog):
             QCheckBox {
                 color: #cbd5e1;
                 font-size: 12px;
+                spacing: 8px;
             }
             QCheckBox::indicator {
                 width: 16px;
                 height: 16px;
                 border-radius: 4px;
-                border: 1px solid #475569;
-                background: #1e2128;
+                border: 1px solid #3b4252;
+                background: #161922;
             }
             QCheckBox::indicator:checked {
-                background: #4f46e5;
-                border-color: #6366f1;
+                background: #6366f1;
+                border-color: #818cf8;
             }
         """)
         dl_layout.addWidget(self.set_wall_cb)
@@ -342,17 +365,17 @@ class DetailDialog(QDialog):
         self.set_wall_now_btn.setVisible(False)
         self.set_wall_now_btn.setStyleSheet("""
             QPushButton {
-                background-color: #312e81;
-                color: #e0e7ff;
-                border: 1px solid #6366f1;
+                background-color: #1e1b4b;
+                color: #c7d2fe;
+                border: 1px solid #4f46e5;
                 border-radius: 8px;
                 font-weight: 600;
                 font-size: 12px;
                 padding: 6px 12px;
             }
             QPushButton:hover {
-                background-color: #3730a3;
-                border-color: #818cf8;
+                background-color: #312e81;
+                border-color: #6366f1;
                 color: #ffffff;
             }
             QPushButton:pressed {
@@ -368,17 +391,18 @@ class DetailDialog(QDialog):
         self.open_folder_btn.setVisible(False)
         self.open_folder_btn.setStyleSheet("""
             QPushButton {
-                background-color: #1e293b;
-                color: #f1f5f9;
-                border: 1px solid #475569;
+                background-color: #191f2d;
+                color: #e2e8f0;
+                border: 1px solid #2c364c;
                 border-radius: 8px;
                 font-weight: 600;
                 font-size: 12px;
                 padding: 6px 12px;
             }
             QPushButton:hover {
-                background-color: #334155;
-                border-color: #64748b;
+                background-color: #252e42;
+                border-color: #3b82f6;
+                color: #ffffff;
             }
         """)
         self.open_folder_btn.clicked.connect(self._on_open_folder)
@@ -390,17 +414,17 @@ class DetailDialog(QDialog):
         self.uninstall_btn.setVisible(False)
         self.uninstall_btn.setStyleSheet("""
             QPushButton {
-                background-color: #7f1d1d;
-                color: #fecaca;
-                border: 1px solid #ef4444;
+                background-color: #450a0a;
+                color: #fca5a5;
+                border: 1px solid #dc2626;
                 border-radius: 8px;
                 font-weight: 600;
                 font-size: 12px;
                 padding: 6px 12px;
             }
             QPushButton:hover {
-                background-color: #991b1b;
-                border-color: #f87171;
+                background-color: #7f1d1d;
+                border-color: #ef4444;
                 color: #ffffff;
             }
             QPushButton:pressed {
@@ -417,13 +441,13 @@ class DetailDialog(QDialog):
         self.meta_frame.setObjectName("metaFrame")
         self.meta_frame.setStyleSheet("""
             QFrame#metaFrame {
-                background: #181a21;
-                border-radius: 6px;
-                border: 1px solid #2d313b;
+                background: #141824;
+                border-radius: 10px;
+                border: 1px solid #232a3b;
             }
         """)
         meta_layout = QVBoxLayout(self.meta_frame)
-        meta_layout.setContentsMargins(10, 8, 10, 8)
+        meta_layout.setContentsMargins(12, 10, 12, 10)
         meta_layout.setSpacing(6)
 
         self.meta_labels = {}
@@ -431,7 +455,7 @@ class DetailDialog(QDialog):
         def add_meta_row(key: str, label_text: str, val: str):
             r = QHBoxLayout()
             l = QLabel(label_text)
-            l.setStyleSheet("color: #94a3b8; font-size: 12px;")
+            l.setStyleSheet("color: #8590a6; font-size: 12px;")
             v = QLabel(f"<b>{val}</b>")
             v.setStyleSheet("color: #f1f5f9; font-size: 12px;")
             r.addWidget(l)
@@ -465,11 +489,11 @@ class DetailDialog(QDialog):
             sidebar_layout.addWidget(self.colors_title_lbl)
 
             colors_layout = QHBoxLayout()
-            colors_layout.setSpacing(4)
+            colors_layout.setSpacing(6)
             for c in self.item.colors:
                 color_chip = QLabel()
                 color_chip.setFixedSize(24, 18)
-                color_chip.setStyleSheet(f"background-color: {c}; border-radius: 3px; border: 1px solid #333845;")
+                color_chip.setStyleSheet(f"background-color: {c}; border-radius: 4px; border: 1px solid #2f384d;")
                 color_chip.setToolTip(c)
                 colors_layout.addWidget(color_chip)
             colors_layout.addStretch()
@@ -484,13 +508,13 @@ class DetailDialog(QDialog):
         self.tags_frame.setObjectName("tagsFrame")
         self.tags_frame.setStyleSheet("""
             QFrame#tagsFrame {
-                background: #181a21;
-                border-radius: 6px;
-                border: 1px solid #2d313b;
+                background: #141824;
+                border-radius: 10px;
+                border: 1px solid #232a3b;
             }
         """)
         self.tags_layout = QVBoxLayout(self.tags_frame)
-        self.tags_layout.setContentsMargins(6, 6, 6, 6)
+        self.tags_layout.setContentsMargins(8, 8, 8, 8)
         self.tags_layout.setSpacing(4)
         self.tags_status_lbl = QLabel(tr("tags_loading"))
         self.tags_status_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
@@ -563,26 +587,20 @@ class DetailDialog(QDialog):
         if not url:
             return
 
-        self._connected = True
-        loader.image_loaded.connect(self._on_preview_loaded)
-        if loader.load_image(url, is_thumb=True):
+        self._preview_url = url
+        loaded = loader.load_image(url, is_thumb=True, callback=self._on_preview_loaded)
+        if loaded:
             pm = loader.cache.get_pixmap(url, is_thumb=True)
             if pm:
                 self._update_preview(pm)
 
     def _cleanup_signal(self):
-        if getattr(self, "_connected", False):
-            try:
-                loader.image_loaded.disconnect(self._on_preview_loaded)
-            except Exception:
-                pass
-            self._connected = False
+        url = getattr(self, "_preview_url", None)
+        if url:
+            loader.unregister_callback(url, self._on_preview_loaded)
 
-    def _on_preview_loaded(self, url: str, pixmap: QPixmap):
-        target_url = self.item.thumb_large or self.item.thumb_original or self.item.thumb_small
-        if url == target_url:
-            self._cleanup_signal()
-            self._update_preview(pixmap)
+    def _on_preview_loaded(self, pixmap: QPixmap):
+        self._update_preview(pixmap)
 
     def closeEvent(self, event):
         self._cleanup_signal()
@@ -648,13 +666,14 @@ class DetailDialog(QDialog):
                 tag_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 tag_btn.setStyleSheet("""
                     QPushButton {
-                        background: #252833;
+                        background: #191f2d;
                         color: #a5b4fc;
-                        border: 1px solid #3b3f4d;
-                        border-radius: 4px;
-                        padding: 3px 6px;
+                        border: 1px solid #283347;
+                        border-radius: 6px;
+                        padding: 4px 8px;
                         font-size: 11px;
                         text-align: left;
+                        font-weight: 500;
                     }
                     QPushButton:hover {
                         background: #312e81;

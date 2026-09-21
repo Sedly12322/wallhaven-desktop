@@ -1,6 +1,7 @@
 import hashlib
 import os
 import sys
+from collections import OrderedDict
 from pathlib import Path
 from typing import Optional
 from PyQt6.QtGui import QPixmap
@@ -13,15 +14,18 @@ else:
 THUMB_CACHE_DIR = CACHE_DIR / "thumbnails"
 FULL_CACHE_DIR = CACHE_DIR / "previews"
 
-MAX_CACHE_BYTES = 500 * 1024 * 1024  # 500 MB
+MAX_CACHE_BYTES = 750 * 1024 * 1024  # 750 MB disk cache
 
 
 class ImageCache:
     def __init__(self):
         THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         FULL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        self._pixmap_mem_cache: dict[str, QPixmap] = {}
-        self._max_mem_entries = 120
+        # High-performance LRU memory caches
+        self._pixmap_mem_cache: OrderedDict[str, QPixmap] = OrderedDict()
+        self._scaled_mem_cache: OrderedDict[str, QPixmap] = OrderedDict()
+        self._max_mem_entries = 250
+        self._max_scaled_entries = 350
 
     def _url_to_path(self, url: str, is_thumb: bool = True) -> Path:
         hash_str = hashlib.sha256(url.encode("utf-8")).hexdigest()
@@ -35,19 +39,34 @@ class ImageCache:
             return path
         return None
 
+    def get_scaled_pixmap(self, url: str, w: int, h: int) -> Optional[QPixmap]:
+        key = f"{url}_{w}_{h}"
+        if key in self._scaled_mem_cache:
+            self._scaled_mem_cache.move_to_end(key)
+            return self._scaled_mem_cache[key]
+        return None
+
+    def save_scaled_pixmap(self, url: str, w: int, h: int, pm: QPixmap):
+        if pm and not pm.isNull():
+            key = f"{url}_{w}_{h}"
+            if key in self._scaled_mem_cache:
+                self._scaled_mem_cache.move_to_end(key)
+            self._scaled_mem_cache[key] = pm
+            if len(self._scaled_mem_cache) > self._max_scaled_entries:
+                self._scaled_mem_cache.popitem(last=False)
+
     def get_pixmap(self, url: str, is_thumb: bool = True) -> Optional[QPixmap]:
         if url in self._pixmap_mem_cache:
+            self._pixmap_mem_cache.move_to_end(url)
             return self._pixmap_mem_cache[url]
 
         path = self.get_cached_path(url, is_thumb)
         if path:
             pm = QPixmap(str(path))
             if not pm.isNull():
-                if len(self._pixmap_mem_cache) >= self._max_mem_entries:
-                    # Drop first 20 items
-                    for k in list(self._pixmap_mem_cache.keys())[:20]:
-                        del self._pixmap_mem_cache[k]
                 self._pixmap_mem_cache[url] = pm
+                if len(self._pixmap_mem_cache) > self._max_mem_entries:
+                    self._pixmap_mem_cache.popitem(last=False)
                 return pm
         return None
 
@@ -61,10 +80,9 @@ class ImageCache:
             # Store in mem cache
             pm = QPixmap()
             if pm.loadFromData(data):
-                if len(self._pixmap_mem_cache) >= self._max_mem_entries:
-                    for k in list(self._pixmap_mem_cache.keys())[:20]:
-                        del self._pixmap_mem_cache[k]
                 self._pixmap_mem_cache[url] = pm
+                if len(self._pixmap_mem_cache) > self._max_mem_entries:
+                    self._pixmap_mem_cache.popitem(last=False)
         except Exception as e:
             print(f"Error saving cached image {url}: {e}")
         return path

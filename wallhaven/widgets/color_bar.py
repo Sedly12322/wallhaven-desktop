@@ -20,21 +20,21 @@ class ColorButton(QPushButton):
         super().__init__(parent)
         self.hex_color = hex_color
         self.setToolTip(tr(f"color_{hex_color}"))
-        self.setFixedSize(22, 22)
+        self.setFixedSize(24, 24)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.update_style(False)
 
     def update_style(self, checked: bool):
-        border = "2px solid #ffffff" if checked else "1px solid #44475a"
+        border = "2.5px solid #ffffff" if checked else "1.5px solid #282e42"
         self.setStyleSheet(f"""
             QPushButton {{
                 background-color: #{self.hex_color};
                 border: {border};
-                border-radius: 11px;
+                border-radius: 12px;
             }}
             QPushButton:hover {{
-                border: 2px solid #6366f1;
+                border: 2px solid #818cf8;
             }}
         """)
 
@@ -52,11 +52,11 @@ class ColorBar(QFrame):
 
     def _init_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(7)
 
         self.title = QLabel(tr("color_label"))
-        self.title.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 11px;")
+        self.title.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 11px; margin-right: 4px;")
         layout.addWidget(self.title)
 
         for hex_code in WALLHAVEN_COLOR_CODES:
@@ -65,19 +65,23 @@ class ColorBar(QFrame):
             layout.addWidget(btn)
             self.buttons.append(btn)
 
+        layout.addSpacing(6)
+
         self.clear_btn = QPushButton(tr("color_clear"))
         self.clear_btn.setStyleSheet("""
             QPushButton {
-                background: #252833;
+                background: #1a1e2b;
                 color: #94a3b8;
-                border: 1px solid #3b3f4d;
-                border-radius: 10px;
-                padding: 2px 8px;
+                border: 1px solid #282e42;
+                border-radius: 11px;
+                padding: 3px 10px;
                 font-size: 11px;
+                font-weight: 500;
             }
             QPushButton:hover {
-                background: #323644;
-                color: #e2e8f0;
+                background: #242a3c;
+                border-color: #6366f1;
+                color: #ffffff;
             }
         """)
         self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -94,7 +98,6 @@ class ColorBar(QFrame):
 
     def _on_color_clicked(self, hex_code: str, clicked_btn: ColorButton):
         if self.selected_color == hex_code:
-            # Deselect
             self.selected_color = ""
             clicked_btn.setChecked(False)
             clicked_btn.update_style(False)

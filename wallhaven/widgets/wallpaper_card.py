@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QPixmap, QColor, QPainter, QPainterPath
+from PyQt6.QtGui import QPixmap, QColor, QPainter, QCursor
 from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
@@ -19,8 +19,10 @@ class WallpaperCard(QFrame):
     uninstall_requested = pyqtSignal(WallpaperItem)
     set_wall_requested = pyqtSignal(WallpaperItem)
 
-    CARD_WIDTH = 290
-    CARD_HEIGHT = 220
+    CARD_WIDTH = 296
+    CARD_HEIGHT = 226
+    IMAGE_WIDTH = 284
+    IMAGE_HEIGHT = 170
 
     def __init__(self, item: WallpaperItem, parent=None):
         super().__init__(parent)
@@ -30,7 +32,7 @@ class WallpaperCard(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self._pixmap: QPixmap | None = None
-        self._is_hovered = False
+        self._thumb_url = self.item.thumb_large or self.item.thumb_small or self.item.path
 
         self._init_ui()
         self._load_thumbnail()
@@ -38,19 +40,28 @@ class WallpaperCard(QFrame):
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
+        layout.setSpacing(6)
 
-        # Image preview container
+        # 1. Image preview container with placeholder skeleton
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setStyleSheet("background-color: #12141a; border-radius: 6px;")
-        self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.image_label.setText(tr("card_loading"))
-        layout.addWidget(self.image_label, stretch=1)
+        self.image_label.setFixedSize(self.IMAGE_WIDTH, self.IMAGE_HEIGHT)
+        self.image_label.setStyleSheet("""
+            QLabel {
+                background-color: #10121a;
+                border: 1px solid #1c2130;
+                border-radius: 8px;
+                color: #475569;
+                font-size: 13px;
+                font-weight: 500;
+            }
+        """)
+        self.image_label.setText("⏳ " + tr("card_loading"))
+        layout.addWidget(self.image_label)
 
-        # Bottom info row
+        # 2. Bottom info row
         info_row = QHBoxLayout()
-        info_row.setContentsMargins(2, 0, 2, 2)
+        info_row.setContentsMargins(4, 0, 4, 2)
         info_row.setSpacing(6)
 
         # Live wallpaper indicator
@@ -58,24 +69,50 @@ class WallpaperCard(QFrame):
             live_badge = QLabel("▶ LIVE")
             live_badge.setToolTip(tr("card_live_tooltip"))
             live_badge.setStyleSheet("""
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0891b2, stop:1 #4f46e5);
-                color: #ffffff;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 10px;
-                padding: 1px 5px;
+                QLabel {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #06b6d4, stop:1 #6366f1);
+                    color: #ffffff;
+                    border-radius: 5px;
+                    font-weight: 800;
+                    font-size: 10px;
+                    padding: 2px 6px;
+                }
             """)
             info_row.addWidget(live_badge)
 
-        # Resolution badge
+        # Resolution badge (4K Gold, 2K Cyan, Standard)
         res_text = self.item.resolution
-        if self.item.dimension_x >= 3840:
-            res_text = f"4K ({self.item.resolution})"
-        elif self.item.dimension_x >= 2560:
-            res_text = f"2K ({self.item.resolution})"
+        is_4k = self.item.dimension_x >= 3840
+        is_2k = not is_4k and self.item.dimension_x >= 2560
+
+        if is_4k:
+            res_text = f"✨ 4K ({self.item.resolution})"
+        elif is_2k:
+            res_text = f"⚡ 2K ({self.item.resolution})"
 
         self.res_badge = QLabel(res_text)
-        self.res_badge.setObjectName("badge")
+        if is_4k:
+            self.res_badge.setStyleSheet("""
+                background-color: rgba(245, 158, 11, 0.18);
+                color: #fbbf24;
+                border: 1px solid rgba(245, 158, 11, 0.4);
+                border-radius: 5px;
+                padding: 2px 6px;
+                font-size: 10.5px;
+                font-weight: bold;
+            """)
+        elif is_2k:
+            self.res_badge.setStyleSheet("""
+                background-color: rgba(56, 189, 248, 0.18);
+                color: #38bdf8;
+                border: 1px solid rgba(56, 189, 248, 0.4);
+                border-radius: 5px;
+                padding: 2px 6px;
+                font-size: 10.5px;
+                font-weight: bold;
+            """)
+        else:
+            self.res_badge.setObjectName("badge")
         info_row.addWidget(self.res_badge)
 
         # Category badge
@@ -93,45 +130,56 @@ class WallpaperCard(QFrame):
             if 0 < rank <= 15:
                 cat_badge.setToolTip(f"Winner #{rank} - {meta.get('season', '')}")
             self.setToolTip(f"{meta.get('title', '')}\nArtist: {meta.get('artist', '')}\nSeason: {meta.get('season', '')}\nVotes: {meta.get('votes', 0):,}")
-        elif getattr(self.item, "_display_title", None):
-            cat_badge = QLabel(self.item.category.capitalize())
-            self.setToolTip(f"{self.item._display_title}\n{self.item.resolution} • Live Wallpaper (MoeWalls)")
         else:
             cat_badge = QLabel(self.item.category.capitalize())
+
         cat_badge.setObjectName("categoryBadge")
         info_row.addWidget(cat_badge)
 
-        # Purity indicator (if sketchy or nsfw)
+        # Purity indicator
         if self.item.purity == "sketchy":
             purity_lbl = QLabel("S")
             purity_lbl.setToolTip("Sketchy")
-            purity_lbl.setStyleSheet("background: #d97706; color: white; border-radius: 3px; font-weight: bold; font-size: 10px; padding: 1px 4px;")
+            purity_lbl.setStyleSheet("""
+                background: #d97706;
+                color: white;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 1px 5px;
+            """)
             info_row.addWidget(purity_lbl)
         elif self.item.purity == "nsfw":
             purity_lbl = QLabel("NSFW")
-            purity_lbl.setStyleSheet("background: #dc2626; color: white; border-radius: 3px; font-weight: bold; font-size: 10px; padding: 1px 4px;")
+            purity_lbl.setStyleSheet("""
+                background: #e11d48;
+                color: white;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 1px 5px;
+            """)
             info_row.addWidget(purity_lbl)
 
         info_row.addStretch()
 
-        # Favorites counter (only if > 0)
+        # Favorites count
         if self.item.favorites > 0:
             fav_lbl = QLabel(f"★ {self.item.favorites}")
-            fav_lbl.setStyleSheet("color: #fbbf24; font-size: 11px;")
+            fav_lbl.setStyleSheet("color: #fbbf24; font-size: 11px; font-weight: 600;")
             info_row.addWidget(fav_lbl)
 
         # Action Buttons
         if is_installed:
-            # Set wallpaper button
             self.set_wall_btn = QPushButton("🖼️")
-            self.set_wall_btn.setFixedSize(26, 24)
+            self.set_wall_btn.setFixedSize(28, 26)
             self.set_wall_btn.setToolTip(tr("card_set_wall_tooltip"))
             self.set_wall_btn.setStyleSheet("""
                 QPushButton {
                     background: #059669;
                     color: #ffffff;
-                    border: none;
-                    border-radius: 5px;
+                    border: 1px solid #10b981;
+                    border-radius: 6px;
                     font-size: 12px;
                     padding: 0;
                 }
@@ -143,16 +191,15 @@ class WallpaperCard(QFrame):
             self.set_wall_btn.clicked.connect(lambda: self.set_wall_requested.emit(self.item))
             info_row.addWidget(self.set_wall_btn)
 
-            # Uninstall button
             self.uninstall_btn = QPushButton("🗑️")
-            self.uninstall_btn.setFixedSize(26, 24)
+            self.uninstall_btn.setFixedSize(28, 26)
             self.uninstall_btn.setToolTip(tr("card_uninstall_tooltip"))
             self.uninstall_btn.setStyleSheet("""
                 QPushButton {
                     background: #dc2626;
                     color: #ffffff;
-                    border: none;
-                    border-radius: 5px;
+                    border: 1px solid #ef4444;
+                    border-radius: 6px;
                     font-size: 12px;
                     padding: 0;
                 }
@@ -164,22 +211,22 @@ class WallpaperCard(QFrame):
             self.uninstall_btn.clicked.connect(lambda: self.uninstall_requested.emit(self.item))
             info_row.addWidget(self.uninstall_btn)
         else:
-            # Quick download button
             self.dl_btn = QPushButton("⬇")
-            self.dl_btn.setFixedSize(26, 24)
+            self.dl_btn.setFixedSize(28, 26)
             self.dl_btn.setToolTip(tr("card_download_tooltip"))
             self.dl_btn.setStyleSheet("""
                 QPushButton {
-                    background: #4f46e5;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4f46e5, stop:1 #6366f1);
                     color: #ffffff;
-                    border: none;
-                    border-radius: 5px;
+                    border: 1px solid #818cf8;
+                    border-radius: 6px;
                     font-size: 12px;
                     font-weight: bold;
                     padding: 0;
                 }
                 QPushButton:hover {
-                    background: #6366f1;
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4338ca, stop:1 #4f46e5);
+                    border-color: #a5b4fc;
                 }
             """)
             self.dl_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -189,65 +236,33 @@ class WallpaperCard(QFrame):
         layout.addLayout(info_row)
 
     def _load_thumbnail(self):
-        thumb_url = self.item.thumb_large or self.item.thumb_small or self.item.path
-        if not thumb_url:
+        if not self._thumb_url:
             self.image_label.setText(tr("card_no_preview"))
             return
 
-        self._connected = True
-        loader.image_loaded.connect(self._on_image_loaded)
-        if loader.load_image(thumb_url, is_thumb=True):
-            # Already in cache
-            pm = loader.cache.get_pixmap(thumb_url, is_thumb=True)
-            if pm:
-                self._update_pixmap(pm)
-
-    def _cleanup_signal(self):
-        if getattr(self, "_connected", False):
-            try:
-                loader.image_loaded.disconnect(self._on_image_loaded)
-            except Exception:
-                pass
-            self._connected = False
-
-    def _on_image_loaded(self, url: str, pixmap: QPixmap):
-        thumb_url = self.item.thumb_large or self.item.thumb_small
-        if url == thumb_url:
-            self._cleanup_signal()
-            self._update_pixmap(pixmap)
-
-    def closeEvent(self, event):
-        self._cleanup_signal()
-        super().closeEvent(event)
-
-    def _update_pixmap(self, pixmap: QPixmap):
-        self._pixmap = pixmap
-        # Scale to fit image label maintaining aspect ratio
-        target_size = QSize(self.CARD_WIDTH - 14, self.CARD_HEIGHT - 48)
-        scaled = pixmap.scaled(
-            target_size,
-            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-            Qt.TransformationMode.SmoothTransformation,
+        target_size = (self.IMAGE_WIDTH, self.IMAGE_HEIGHT)
+        # Ultra-fast path: checks pre-scaled memory cache and dispatches without UI thread scaling
+        loader.load_thumbnail(
+            self._thumb_url,
+            target_size=target_size,
+            radius=8,
+            callback=self._set_pixmap_instant
         )
 
-        # Crop to center
-        x = max(0, (scaled.width() - target_size.width()) // 2)
-        y = max(0, (scaled.height() - target_size.height()) // 2)
-        cropped = scaled.copy(x, y, target_size.width(), target_size.height())
-
-        # Rounded corners for image
-        rounded = QPixmap(cropped.size())
-        rounded.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(rounded)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        path = QPainterPath()
-        path.addRoundedRect(0, 0, cropped.width(), cropped.height(), 6, 6)
-        painter.setClipPath(path)
-        painter.drawPixmap(0, 0, cropped)
-        painter.end()
-
-        self.image_label.setPixmap(rounded)
+    def _set_pixmap_instant(self, pixmap: QPixmap):
+        """Called directly when pre-scaled rounded pixmap is ready."""
+        self._pixmap = pixmap
+        self.image_label.setStyleSheet("QLabel { background-color: transparent; border: none; }")
+        self.image_label.setPixmap(pixmap)
         self.image_label.setText("")
+
+    def _cleanup_loader(self):
+        if self._thumb_url:
+            loader.unregister_callback(self._thumb_url, self._set_pixmap_instant)
+
+    def closeEvent(self, event):
+        self._cleanup_loader()
+        super().closeEvent(event)
 
     def _on_download_clicked(self):
         self.download_requested.emit(self.item)

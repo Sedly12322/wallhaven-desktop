@@ -38,6 +38,7 @@ class WallpaperGridWidget(QWidget):
 
     def clear(self):
         for card in self.cards:
+            card._cleanup_loader()
             self.grid_layout.removeWidget(card)
             card.deleteLater()
         self.cards.clear()
