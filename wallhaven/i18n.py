@@ -192,7 +192,7 @@ TRANSLATIONS = {
 
         # Settings Dialog
         "settings_title": "Settings",
-        "theme_section": "Appearance & Theme",
+        "theme_section": "Appearance && Theme",
         "theme_label": "Color Palette:",
         "lang_section": "Language / Jazyk",
         "lang_label": "Interface language:",

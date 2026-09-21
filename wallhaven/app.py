@@ -8,7 +8,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from wallhaven.main_window import MainWindow
-from wallhaven.styles import get_stylesheet
+from wallhaven.styles import get_stylesheet, get_theme_watcher, is_matugen_available
 from wallhaven.config import config
 
 
@@ -93,8 +93,11 @@ def main():
         app.setWindowIcon(QIcon(str(icon_path)))
 
     # Apply global stylesheet according to saved theme
-    theme_id = config.get("theme", "dark")
+    theme_id = config.get("theme", "matugen" if sys.platform != "win32" and is_matugen_available() else "dark")
     app.setStyleSheet(get_stylesheet(theme_id))
+
+    # Initialize dynamic theme watcher for real-time Matugen color updates
+    theme_watcher = get_theme_watcher()
 
     window = MainWindow()
     if icon_path.exists():

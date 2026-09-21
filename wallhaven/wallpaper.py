@@ -294,7 +294,99 @@ def detect_wallpaper_command(for_video: bool = False) -> list[str]:
     return []
 
 
+def trigger_matugen_refresh(abs_path: str):
+    """Triggers Matugen palette regeneration and desktop color reload on Linux."""
+    if sys.platform == "win32":
+        return
+
+    matugen_bin = shutil.which("matugen") or ("/usr/bin/matugen" if os.path.exists("/usr/bin/matugen") else None)
+    serp_dir = Path.home() / ".local/share/serpantinum"
+    has_serp = serp_dir.exists()
+
+    if not matugen_bin and not has_serp:
+        return
+
+    try:
+        target_img = abs_path
+        if is_video_file(abs_path):
+            # Extract 1 frame from video using ffmpeg
+            frame_cache = Path("/tmp/wallhaven_matugen_frame.jpg")
+            if shutil.which("ffmpeg"):
+                subprocess.run(
+                    ["ffmpeg", "-y", "-ss", "00:00:01", "-i", abs_path, "-vframes", "1", str(frame_cache)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                )
+                if frame_cache.exists() and frame_cache.stat().st_size > 0:
+                    target_img = str(frame_cache)
+                else:
+                    return
+            else:
+                return
+
+        # 1. Quickshell IPC call if Quickshell is running
+        qs_entry = find_quickshell_entry()
+        if shutil.which("qs"):
+            cmd = ["qs", "ipc"]
+            if qs_entry:
+                cmd.extend(["-p", qs_entry])
+            cmd.extend(["call", "matugen", "generateImage", target_img])
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # 2. Matugen CLI with Serpantinum config
+        serp_cfg = serp_dir / "src/assets/matugen/config.toml"
+        if matugen_bin and serp_cfg.exists():
+            subprocess.Popen(
+                [matugen_bin, "-c", str(serp_cfg), "image", target_img, "--source-color-index", "0"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        elif matugen_bin:
+            # Generic matugen
+            subprocess.Popen(
+                [matugen_bin, "image", target_img, "--source-color-index", "0"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+        # 3. Trigger reload script and quickshell reloadColors
+        reload_sh = serp_dir / "src/scripts/wallpaper/matugen_reload.sh"
+        if reload_sh.exists():
+            subprocess.Popen(["bash", str(reload_sh)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        if shutil.which("qs"):
+            cmd_reload = ["qs", "ipc"]
+            if qs_entry:
+                cmd_reload.extend(["-p", qs_entry])
+            cmd_reload.extend(["call", "theme", "reloadColors"])
+            subprocess.Popen(cmd_reload, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    except Exception as e:
+        print(f"[Matugen] Trigger error: {e}")
+
+
 def set_desktop_wallpaper(
+    file_path: str,
+    custom_cmd: str = "",
+    setter_id: str = "auto",
+    custom_video_cmd: str = "",
+) -> Tuple[bool, str]:
+    """
+    Sets the downloaded wallpaper on the desktop and triggers Matugen palette update.
+    Supports both static images and animated video wallpapers (.mp4, .webm).
+    Returns (success: bool, message: str).
+    """
+    success, msg = _set_desktop_wallpaper_impl(file_path, custom_cmd, setter_id, custom_video_cmd)
+    if success:
+        try:
+            trigger_matugen_refresh(str(Path(file_path).resolve()))
+        except Exception:
+            pass
+    return success, msg
+
+
+def _set_desktop_wallpaper_impl(
     file_path: str,
     custom_cmd: str = "",
     setter_id: str = "auto",

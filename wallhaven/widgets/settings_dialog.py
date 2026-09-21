@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 from wallhaven.config import config
 from wallhaven.cache import CACHE_DIR
-from wallhaven.styles import get_available_themes, get_stylesheet
+from wallhaven.styles import get_available_themes, get_stylesheet, is_matugen_available
 from PyQt6.QtWidgets import QApplication
 from wallhaven.wallpaper import (
     detect_wallpaper_command,
@@ -52,28 +52,33 @@ class SettingsDialog(QDialog):
         # 1. Appearance & Language Section
         self.theme_group = QGroupBox(tr("theme_section"))
         self._apply_group_style(self.theme_group)
-        theme_layout = QHBoxLayout(self.theme_group)
+        theme_layout = QVBoxLayout(self.theme_group)
         theme_layout.setSpacing(10)
 
+        row1 = QHBoxLayout()
+        row1.setSpacing(10)
         self.theme_label = QLabel(tr("theme_label"))
-        self.theme_label.setStyleSheet("color: #cbd5e1; font-size: 12px;")
-        theme_layout.addWidget(self.theme_label)
+        self.theme_label.setStyleSheet("color: #cbd5e1; font-size: 12px; min-width: 125px;")
+        row1.addWidget(self.theme_label)
 
         self.theme_combo = QComboBox()
         for tid, tname in get_available_themes():
             self.theme_combo.addItem(tname, tid)
-        curr_theme = config.get("theme", "dark")
+        curr_theme = config.get("theme", "matugen" if is_matugen_available() else "dark")
         t_idx = self.theme_combo.findData(curr_theme)
         if t_idx >= 0:
             self.theme_combo.setCurrentIndex(t_idx)
+        elif self.theme_combo.findData("matugen") >= 0:
+            self.theme_combo.setCurrentIndex(self.theme_combo.findData("matugen"))
         self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
-        theme_layout.addWidget(self.theme_combo)
+        row1.addWidget(self.theme_combo, 1)
+        theme_layout.addLayout(row1)
 
-        theme_layout.addSpacing(20)
-
+        row2 = QHBoxLayout()
+        row2.setSpacing(10)
         self.lang_label = QLabel(tr("lang_label"))
-        self.lang_label.setStyleSheet("color: #cbd5e1; font-size: 12px;")
-        theme_layout.addWidget(self.lang_label)
+        self.lang_label.setStyleSheet("color: #cbd5e1; font-size: 12px; min-width: 125px;")
+        row2.addWidget(self.lang_label)
 
         self.lang_combo = QComboBox()
         self.lang_combo.addItem("English", "en")
@@ -82,8 +87,8 @@ class SettingsDialog(QDialog):
         if idx >= 0:
             self.lang_combo.setCurrentIndex(idx)
         self.lang_combo.currentIndexChanged.connect(self._on_language_changed)
-        theme_layout.addWidget(self.lang_combo)
-        theme_layout.addStretch()
+        row2.addWidget(self.lang_combo, 1)
+        theme_layout.addLayout(row2)
 
         layout.addWidget(self.theme_group)
 

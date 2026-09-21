@@ -12,10 +12,14 @@ Supports curated Linux & cross-platform themes:
 - Linux System / Pywal Palette (Dynamic desktop adaptation)
 """
 import os
+import sys
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
+from PyQt6.QtCore import QObject, QFileSystemWatcher, QTimer, pyqtSignal
+from PyQt6.QtWidgets import QApplication
 
 _ASSETS_DIR = Path(__file__).parent.parent / "assets"
 _CHEVRON_NORMAL = str(_ASSETS_DIR / "chevron_down.png").replace("\\", "/")
@@ -202,6 +206,231 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
 }
 
 
+def _is_light_color(hex_str: str) -> bool:
+    """Check if color is light based on perceived luminance."""
+    try:
+        clean = hex_str.lstrip("#")
+        if len(clean) == 6:
+            r = int(clean[0:2], 16)
+            g = int(clean[2:4], 16)
+            b = int(clean[4:6], 16)
+            lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+            return lum > 0.55
+    except Exception:
+        pass
+    return False
+
+
+def is_matugen_available() -> bool:
+    """Check if Matugen color outputs or executable are present on the system."""
+    serp_paths = [
+        Path.home() / ".local/state/serpantinum/qs_colors.json",
+        Path.home() / ".local/state/serpantinum/qs_matugen_colors.json",
+    ]
+    for p in serp_paths:
+        if p.exists():
+            return True
+
+    std_paths = [
+        Path.home() / ".config/matugen/colors.json",
+        Path.home() / ".cache/matugen/colors.json",
+        Path.home() / ".local/state/matugen/colors.json",
+    ]
+    for p in std_paths:
+        if p.exists():
+            return True
+
+    if shutil.which("matugen") is not None or os.path.exists("/usr/bin/matugen"):
+        return True
+
+    return False
+
+
+def _parse_standard_matugen_json(data: dict) -> Optional[Dict[str, str]]:
+    """Parse standard Matugen JSON color schema."""
+    try:
+        colors = data.get("colors", {})
+        if not colors:
+            return None
+
+        def get_c(key: str, fallback: str) -> str:
+            item = colors.get(key, {})
+            if isinstance(item, dict):
+                return item.get("dark", {}).get("color") or item.get("default", {}).get("color") or fallback
+            return fallback
+
+        bg_base = get_c("background", "#0c0e13")
+        bg_surface = get_c("surface_container_lowest", "#111318")
+        bg_subsurface = get_c("surface", "#0c0e13")
+        bg_card_hover = get_c("surface_container_low", "#191c20")
+        bg_input = get_c("surface_container", "#1d2024")
+        bg_input_hover = get_c("surface_container_high", "#282a2f")
+        border = get_c("outline_variant", "#32353a")
+        border_subtle = get_c("surface_container_highest", "#282a2f")
+
+        accent = get_c("primary", "#a5c8fe")
+        accent_hover = get_c("surface_tint", "#c1c1ff")
+        accent_surface = get_c("primary_container", "#214876")
+        accent_text_color = get_c("on_primary", "")
+        if not accent_text_color:
+            accent_text_color = bg_base if _is_light_color(accent) else "#ffffff"
+
+        text_primary = get_c("on_surface", "#e1e2e9")
+        text_secondary = get_c("on_surface_variant", "#c3c6cf")
+        text_muted = get_c("outline", "#8d9199")
+
+        return {
+            "name": "🪄 Matugen (Auto / Material 3)",
+            "bg_base": bg_base,
+            "bg_surface": bg_surface,
+            "bg_subsurface": bg_subsurface,
+            "bg_capsule": bg_base,
+            "bg_input": bg_input,
+            "bg_input_hover": bg_input_hover,
+            "bg_card_hover": bg_card_hover,
+            "border": border,
+            "border_subtle": border_subtle,
+            "border_hover": accent,
+            "accent": accent,
+            "accent_hover": accent_hover,
+            "accent_gradient_start": accent,
+            "accent_gradient_end": accent_hover,
+            "accent_surface": accent_surface,
+            "accent_text": accent_text_color,
+            "text_primary": text_primary,
+            "text_secondary": text_secondary,
+            "text_muted": text_muted,
+        }
+    except Exception:
+        return None
+
+
+def _detect_current_wallpaper_image() -> Optional[str]:
+    """Tries to find current desktop wallpaper image path for Matugen."""
+    if shutil.which("qs"):
+        try:
+            res = subprocess.run(
+                ["qs", "ipc", "call", "wallpaper", "getWallpaperPath", '""'],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                p = res.stdout.strip().strip('"').strip("'")
+                if os.path.exists(p) and not p.lower().endswith((".mp4", ".webm", ".mkv")):
+                    return p
+        except Exception:
+            pass
+
+    if shutil.which("hyprctl"):
+        try:
+            res = subprocess.run(["hyprctl", "hyprpaper", "listactive"], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout:
+                for line in res.stdout.splitlines():
+                    if "=" in line:
+                        p = line.split("=", 1)[1].strip()
+                        if os.path.exists(p):
+                            return p
+        except Exception:
+            pass
+
+    return None
+
+
+def _get_matugen_palette() -> Optional[Dict[str, str]]:
+    """Load dynamic Material You color scheme generated by Matugen / Serpantinum."""
+    # 1. Check Serpantinum state files
+    serp_paths = [
+        Path.home() / ".local/state/serpantinum/qs_colors.json",
+        Path.home() / ".local/state/serpantinum/qs_matugen_colors.json",
+    ]
+    for sp in serp_paths:
+        if sp.exists():
+            try:
+                with open(sp, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict) and "base" in data and "text" in data:
+                    bg_base = data.get("base", "#0c0e13")
+                    bg_surface = data.get("crust", "#111318")
+                    bg_mantle = data.get("mantle", "#191c20")
+                    bg_input = data.get("surface0", "#1d2024")
+                    bg_input_hover = data.get("surface1", "#282a2f")
+                    border = data.get("surface2", "#32353a")
+                    border_subtle = data.get("surface1", "#282a2f")
+                    text_primary = data.get("text", "#e1e2e9")
+                    text_secondary = data.get("subtext0", "#c3c6cf")
+                    text_muted = data.get("subtext1", "#8d9199")
+                    accent = data.get("blue") or data.get("mauve") or "#a5c8fe"
+                    accent_hover = data.get("mauve") or data.get("blue") or "#c1c1ff"
+                    accent_surface = data.get("sapphire") or "#214876"
+
+                    accent_text = bg_base if _is_light_color(accent) else "#ffffff"
+
+                    return {
+                        "name": "🪄 Matugen (Auto / Tapeta)",
+                        "bg_base": bg_base,
+                        "bg_surface": bg_surface,
+                        "bg_subsurface": bg_surface,
+                        "bg_capsule": bg_base,
+                        "bg_input": bg_input,
+                        "bg_input_hover": bg_input_hover,
+                        "bg_card_hover": bg_mantle,
+                        "border": border,
+                        "border_subtle": border_subtle,
+                        "border_hover": accent,
+                        "accent": accent,
+                        "accent_hover": accent_hover,
+                        "accent_gradient_start": accent,
+                        "accent_gradient_end": accent_hover,
+                        "accent_surface": accent_surface,
+                        "accent_text": accent_text,
+                        "text_primary": text_primary,
+                        "text_secondary": text_secondary,
+                        "text_muted": text_muted,
+                    }
+            except Exception:
+                pass
+
+    # 2. Check standard Matugen config / cache files
+    std_matugen_paths = [
+        Path.home() / ".config/matugen/colors.json",
+        Path.home() / ".cache/matugen/colors.json",
+        Path.home() / ".local/state/matugen/colors.json",
+    ]
+    for mp in std_matugen_paths:
+        if mp.exists():
+            try:
+                with open(mp, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                pal = _parse_standard_matugen_json(data)
+                if pal:
+                    return pal
+            except Exception:
+                pass
+
+    # 3. Direct matugen invocation if binary exists and wallpaper image is found
+    matugen_bin = shutil.which("matugen") or ("/usr/bin/matugen" if os.path.exists("/usr/bin/matugen") else None)
+    if matugen_bin:
+        wp_candidate = _detect_current_wallpaper_image()
+        if wp_candidate and os.path.exists(wp_candidate):
+            try:
+                res = subprocess.run(
+                    [matugen_bin, "image", wp_candidate, "--dry-run", "-j", "hex", "--source-color-index", "0"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if res.returncode == 0 and res.stdout:
+                    data = json.loads(res.stdout)
+                    pal = _parse_standard_matugen_json(data)
+                    if pal:
+                        return pal
+            except Exception:
+                pass
+
+    return None
+
+
 def _detect_linux_system_accent() -> Optional[str]:
     """Detect GNOME / GTK / Desktop accent color on Linux if available."""
     try:
@@ -272,14 +501,21 @@ def _get_pywal_palette() -> Optional[Dict[str, str]]:
 
 def get_available_themes() -> List[Tuple[str, str]]:
     """Return list of (theme_id, display_name) for theme selection."""
-    themes = [(k, v["name"]) for k, v in THEME_PALETTES.items()]
-    
-    # Check if Linux system accent is detected
+    themes = []
+
+    # 1. Matugen dynamic Material You theme (first if available on Linux)
+    if is_matugen_available():
+        themes.append(("matugen", "🪄 Matugen (Auto / Systémové barvy)"))
+
+    # 2. Curated theme palettes
+    themes.extend([(k, v["name"]) for k, v in THEME_PALETTES.items()])
+
+    # 3. Linux system accent (GNOME/GTK)
     sys_accent = _detect_linux_system_accent()
     if sys_accent:
-        themes.append(("system", "🐧 Linux System Accent"))
-        
-    # Check if Pywal colors are available
+        themes.append(("system", "🐧 Linux Desktop Accent"))
+
+    # 4. Pywal colors
     if (Path.home() / ".cache" / "wal" / "colors.json").exists():
         themes.append(("pywal", "🎨 Pywal (Wallpaper Colors)"))
 
@@ -288,13 +524,18 @@ def get_available_themes() -> List[Tuple[str, str]]:
 
 def get_palette(theme_id: str = "dark") -> Dict[str, str]:
     """Retrieve color palette dictionary for given theme ID."""
-    if theme_id == "pywal":
-        wal_pal = _get_pywal_palette()
-        if wal_pal:
-            return wal_pal
+    if theme_id in ("matugen", "auto"):
+        pal = _get_matugen_palette()
+        if pal:
+            return pal
         theme_id = "dark"
 
     if theme_id == "system":
+        # Prefer Matugen if available on user's desktop
+        if is_matugen_available():
+            pal = _get_matugen_palette()
+            if pal:
+                return pal
         sys_accent = _detect_linux_system_accent() or "#3584e4"
         base = dict(THEME_PALETTES["dark"])
         base["name"] = "🐧 Linux System Accent"
@@ -304,6 +545,12 @@ def get_palette(theme_id: str = "dark") -> Dict[str, str]:
         base["accent_gradient_end"] = sys_accent
         base["accent_surface"] = "#1e2a3a"
         return base
+
+    if theme_id == "pywal":
+        wal_pal = _get_pywal_palette()
+        if wal_pal:
+            return wal_pal
+        theme_id = "dark"
 
     return THEME_PALETTES.get(theme_id, THEME_PALETTES["dark"])
 
@@ -773,3 +1020,73 @@ def get_stylesheet(theme_id: str = "dark") -> str:
 
 
 DARK_STYLESHEET = get_stylesheet("dark")
+
+
+class ThemeWatcher(QObject):
+    """Watches external Matugen and Pywal color files and live-reloads application styles."""
+    theme_reloaded = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._watcher = QFileSystemWatcher(self)
+        self._debounce_timer = QTimer(self)
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.setInterval(150)
+        self._debounce_timer.timeout.connect(self._on_reload_timeout)
+
+        self._watch_targets = [
+            Path.home() / ".local/state/serpantinum/qs_colors.json",
+            Path.home() / ".local/state/serpantinum/qs_matugen_colors.json",
+            Path.home() / ".local/state/serpantinum",
+            Path.home() / ".config/matugen/colors.json",
+            Path.home() / ".cache/matugen/colors.json",
+            Path.home() / ".cache/wal/colors.json",
+        ]
+        self._setup_watchers()
+
+        self._watcher.fileChanged.connect(self._on_change)
+        self._watcher.directoryChanged.connect(self._on_change)
+
+    def _setup_watchers(self):
+        for p in self._watch_targets:
+            if p.exists():
+                sp = str(p)
+                if sp not in self._watcher.files() and sp not in self._watcher.directories():
+                    try:
+                        self._watcher.addPath(sp)
+                    except Exception:
+                        pass
+
+    def _on_change(self, path: str):
+        # Trigger debounced reload
+        self._debounce_timer.start()
+
+    def _on_reload_timeout(self):
+        self._setup_watchers()
+        try:
+            from wallhaven.config import config
+            curr_theme = config.get("theme", "dark")
+        except Exception:
+            curr_theme = "matugen"
+
+        # If current theme is Matugen, System or Pywal, refresh dynamically
+        if curr_theme in ("matugen", "auto", "system", "pywal"):
+            app = QApplication.instance()
+            if app:
+                new_qss = get_stylesheet(curr_theme)
+                app.setStyleSheet(new_qss)
+                self.theme_reloaded.emit(curr_theme)
+
+
+_THEME_WATCHER: Optional[ThemeWatcher] = None
+
+
+def get_theme_watcher() -> Optional[ThemeWatcher]:
+    """Get or create singleton ThemeWatcher instance (requires QApplication)."""
+    global _THEME_WATCHER
+    app = QApplication.instance()
+    if not app:
+        return None
+    if _THEME_WATCHER is None:
+        _THEME_WATCHER = ThemeWatcher(app)
+    return _THEME_WATCHER

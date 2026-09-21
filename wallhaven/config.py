@@ -31,6 +31,14 @@ def get_default_download_dir() -> Path:
     return default_dir
 
 
+def get_default_theme() -> str:
+    if sys.platform != "win32":
+        serp = Path.home() / ".local/state/serpantinum" / "qs_colors.json"
+        if serp.exists():
+            return "matugen"
+    return "dark"
+
+
 DEFAULT_CONFIG = {
     "api_key": "",
     "default_download_dir": str(get_default_download_dir()),
@@ -42,7 +50,7 @@ DEFAULT_CONFIG = {
     "ratios": "",         # e.g. 16x9, 16x10, 21x9
     "color": "",          # Hex code without #
     "per_page": 24,
-    "theme": "dark",
+    "theme": get_default_theme(),
     "auto_set_wallpaper": True,
     "wallpaper_setter": "auto",
     "custom_wallpaper_cmd": "",
@@ -63,6 +71,10 @@ class Config:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     self._config.update(data)
+                # Auto-upgrade 'system' theme to 'matugen' if Serpantinum / Matugen is active
+                if self._config.get("theme") in ("system", "dark") and sys.platform != "win32":
+                    if (Path.home() / ".local/state/serpantinum" / "qs_colors.json").exists():
+                        self._config["theme"] = "matugen"
             except Exception as e:
                 print(f"Error loading config: {e}")
         else:
