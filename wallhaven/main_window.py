@@ -19,6 +19,8 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QStatusBar,
     QApplication,
+    QSizePolicy,
+    QLayout,
 )
 from wallhaven.api import WallpaperItem, SearchResult, api
 from wallhaven.osu import osu_manager
@@ -143,14 +145,18 @@ class MainWindow(QMainWindow):
         brand_icon.setStyleSheet("font-size: 18px;")
         brand_layout.addWidget(brand_icon)
         brand_title = QLabel("WALLHAVEN")
-        brand_title.setStyleSheet("font-size: 13px; font-weight: 900; color: #f8fafc; letter-spacing: 1.5px;")
+        brand_title.setStyleSheet("font-size: 13.5px; font-weight: 900; color: #f8fafc; letter-spacing: 1.5px;")
         brand_layout.addWidget(brand_title)
         h_layout.addLayout(brand_layout)
-        h_layout.addSpacing(6)
+        h_layout.addSpacing(4)
 
-        # Navigation Mode Tabs: [ Wallhaven ] [ osu! Seasonal ]
-        tabs_layout = QHBoxLayout()
-        tabs_layout.setSpacing(6)
+        # Navigation Mode Tabs inside a capsule container
+        tabs_container = QFrame()
+        tabs_container.setObjectName("tabsContainer")
+        tabs_layout = QHBoxLayout(tabs_container)
+        tabs_layout.setContentsMargins(3, 3, 3, 3)
+        tabs_layout.setSpacing(3)
+        tabs_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
 
         self.tab_wallhaven = QPushButton()
         self.tab_wallhaven.setObjectName("navTab")
@@ -184,34 +190,40 @@ class MainWindow(QMainWindow):
         self.tab_installed.clicked.connect(lambda: self._set_mode("installed"))
         tabs_layout.addWidget(self.tab_installed)
 
-        h_layout.addLayout(tabs_layout)
+        h_layout.addWidget(tabs_container)
 
-        # Search box
+        # Search box (prominent and flexible with min width)
         self.search_input = QLineEdit()
+        self.search_input.setMinimumWidth(130)
+        self.search_input.setFixedHeight(34)
         self.search_input.returnPressed.connect(self._on_search_triggered)
         self.search_input.setClearButtonEnabled(True)
         h_layout.addWidget(self.search_input, stretch=1)
 
         self.search_btn = QPushButton()
         self.search_btn.setObjectName("primaryButton")
+        self.search_btn.setFixedHeight(34)
+        self.search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.search_btn.clicked.connect(self._on_search_triggered)
         h_layout.addWidget(self.search_btn)
 
-        # Toggle Color Bar button (Wallhaven only)
-        self.color_toggle_btn = QPushButton()
-        self.color_toggle_btn.setCheckable(True)
-        self.color_toggle_btn.clicked.connect(self._toggle_color_bar)
-        h_layout.addWidget(self.color_toggle_btn)
+        h_layout.addSpacing(6)
 
         # Auto-wallpaper toggle button
         self.auto_wall_btn = QPushButton()
+        self.auto_wall_btn.setObjectName("headerToolBtn")
+        self.auto_wall_btn.setFixedHeight(34)
         self.auto_wall_btn.setCheckable(True)
         self.auto_wall_btn.setChecked(config.auto_set_wallpaper)
+        self.auto_wall_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.auto_wall_btn.clicked.connect(self._on_auto_wall_toggled)
         h_layout.addWidget(self.auto_wall_btn)
 
         # Settings button
         self.settings_btn = QPushButton()
+        self.settings_btn.setObjectName("headerToolBtn")
+        self.settings_btn.setFixedHeight(34)
+        self.settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.settings_btn.clicked.connect(self._open_settings)
         h_layout.addWidget(self.settings_btn)
 
@@ -221,18 +233,16 @@ class MainWindow(QMainWindow):
         self.wallhaven_filter_bar = QFrame()
         self.wallhaven_filter_bar.setObjectName("filterPanel")
         f_layout = QHBoxLayout(self.wallhaven_filter_bar)
-        f_layout.setContentsMargins(16, 6, 16, 6)
-        f_layout.setSpacing(10)
+        f_layout.setContentsMargins(14, 5, 14, 5)
+        f_layout.setSpacing(5)
 
         # Category Chips
         self.cat_lbl = QLabel()
-        self.cat_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
-        f_layout.addWidget(self.cat_lbl)
-
         self.cat_general = QPushButton()
         self.cat_general.setObjectName("filterChip")
         self.cat_general.setCheckable(True)
         self.cat_general.setChecked(True)
+        self.cat_general.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cat_general.clicked.connect(self._on_filter_changed)
         f_layout.addWidget(self.cat_general)
 
@@ -240,6 +250,7 @@ class MainWindow(QMainWindow):
         self.cat_anime.setObjectName("filterChip")
         self.cat_anime.setCheckable(True)
         self.cat_anime.setChecked(True)
+        self.cat_anime.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cat_anime.clicked.connect(self._on_filter_changed)
         f_layout.addWidget(self.cat_anime)
 
@@ -247,20 +258,23 @@ class MainWindow(QMainWindow):
         self.cat_people.setObjectName("filterChip")
         self.cat_people.setCheckable(True)
         self.cat_people.setChecked(True)
+        self.cat_people.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cat_people.clicked.connect(self._on_filter_changed)
         f_layout.addWidget(self.cat_people)
 
-        f_layout.addSpacing(8)
+        # Subtle Separator 1
+        sep1 = QFrame()
+        sep1.setFrameShape(QFrame.Shape.VLine)
+        sep1.setStyleSheet("background-color: #1e2434; max-width: 1px; margin: 3px 4px;")
+        f_layout.addWidget(sep1)
 
         # Purity Chips
         self.pur_lbl = QLabel()
-        self.pur_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
-        f_layout.addWidget(self.pur_lbl)
-
         self.pur_sfw = QPushButton("SFW")
         self.pur_sfw.setObjectName("filterChip")
         self.pur_sfw.setCheckable(True)
         self.pur_sfw.setChecked(True)
+        self.pur_sfw.setCursor(Qt.CursorShape.PointingHandCursor)
         self.pur_sfw.clicked.connect(self._on_filter_changed)
         f_layout.addWidget(self.pur_sfw)
 
@@ -268,6 +282,7 @@ class MainWindow(QMainWindow):
         self.pur_sketchy.setObjectName("sketchyChip")
         self.pur_sketchy.setCheckable(True)
         self.pur_sketchy.setChecked(False)
+        self.pur_sketchy.setCursor(Qt.CursorShape.PointingHandCursor)
         self.pur_sketchy.clicked.connect(self._on_filter_changed)
         f_layout.addWidget(self.pur_sketchy)
 
@@ -275,16 +290,18 @@ class MainWindow(QMainWindow):
         self.pur_nsfw.setObjectName("nsfwChip")
         self.pur_nsfw.setCheckable(True)
         self.pur_nsfw.setChecked(False)
+        self.pur_nsfw.setCursor(Qt.CursorShape.PointingHandCursor)
         self.pur_nsfw.clicked.connect(self._on_nsfw_clicked)
         f_layout.addWidget(self.pur_nsfw)
 
-        f_layout.addSpacing(8)
+        # Subtle Separator 2
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.VLine)
+        sep2.setStyleSheet("background-color: #1e2434; max-width: 1px; margin: 3px 4px;")
+        f_layout.addWidget(sep2)
 
-        # Sorting combo
+        # Sorting & Filters
         self.sort_lbl = QLabel()
-        self.sort_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
-        f_layout.addWidget(self.sort_lbl)
-
         self.sort_combo = QComboBox()
         self.sort_combo.currentIndexChanged.connect(self._on_sorting_changed)
         f_layout.addWidget(self.sort_combo)
@@ -304,22 +321,30 @@ class MainWindow(QMainWindow):
         self.res_combo.currentIndexChanged.connect(self._on_filter_changed)
         f_layout.addWidget(self.res_combo)
 
+        # Toggle Color Bar button (Wallhaven only)
+        self.color_toggle_btn = QPushButton()
+        self.color_toggle_btn.setObjectName("toolButton")
+        self.color_toggle_btn.setCheckable(True)
+        self.color_toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.color_toggle_btn.clicked.connect(self._toggle_color_bar)
+        f_layout.addWidget(self.color_toggle_btn)
+
         # Quick Reset Filters button
         self.reset_filter_btn = QPushButton("↺")
         self.reset_filter_btn.setToolTip("Resetovat filtry na výchozí")
-        self.reset_filter_btn.setFixedSize(28, 28)
+        self.reset_filter_btn.setFixedSize(30, 30)
         self.reset_filter_btn.setStyleSheet("""
             QPushButton {
-                background-color: #1a1e2b;
+                background-color: #151824;
                 color: #94a3b8;
-                border: 1px solid #282e42;
-                border-radius: 7px;
+                border: 1.5px solid #232838;
+                border-radius: 8px;
                 font-weight: bold;
-                font-size: 13px;
+                font-size: 14px;
                 padding: 0;
             }
             QPushButton:hover {
-                background-color: #242a3c;
+                background-color: #1f2434;
                 border-color: #6366f1;
                 color: #ffffff;
             }
@@ -341,7 +366,7 @@ class MainWindow(QMainWindow):
 
         # Season selector
         self.osu_season_lbl = QLabel()
-        self.osu_season_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        self.osu_season_lbl.setStyleSheet("color: #7e8a9f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         osu_layout.addWidget(self.osu_season_lbl)
 
         self.osu_season_combo = QComboBox()
@@ -352,7 +377,7 @@ class MainWindow(QMainWindow):
 
         # Theme chips
         self.osu_theme_lbl = QLabel()
-        self.osu_theme_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        self.osu_theme_lbl.setStyleSheet("color: #7e8a9f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         osu_layout.addWidget(self.osu_theme_lbl)
 
         self.theme_chips: dict[str, QPushButton] = {}
@@ -378,7 +403,7 @@ class MainWindow(QMainWindow):
 
         # Sorting combo
         self.osu_sort_lbl = QLabel()
-        self.osu_sort_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        self.osu_sort_lbl.setStyleSheet("color: #7e8a9f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         osu_layout.addWidget(self.osu_sort_lbl)
 
         self.osu_sort_combo = QComboBox()
@@ -397,7 +422,7 @@ class MainWindow(QMainWindow):
         moe_layout.setSpacing(10)
 
         self.moe_cat_lbl = QLabel(tr("moe_category_label"))
-        self.moe_cat_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        self.moe_cat_lbl.setStyleSheet("color: #7e8a9f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         moe_layout.addWidget(self.moe_cat_lbl)
 
         self.moe_cat_combo = QComboBox()
@@ -410,7 +435,7 @@ class MainWindow(QMainWindow):
         moe_layout.addSpacing(8)
 
         self.moe_res_lbl = QLabel(tr("moe_res_label"))
-        self.moe_res_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        self.moe_res_lbl.setStyleSheet("color: #7e8a9f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         moe_layout.addWidget(self.moe_res_lbl)
 
         self.moe_res_combo = QComboBox()
@@ -435,7 +460,7 @@ class MainWindow(QMainWindow):
 
         # Provider combo
         self.inst_prov_lbl = QLabel(tr("installed_provider_label"))
-        self.inst_prov_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        self.inst_prov_lbl.setStyleSheet("color: #7e8a9f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         inst_layout.addWidget(self.inst_prov_lbl)
 
         self.inst_prov_combo = QComboBox()
@@ -446,7 +471,7 @@ class MainWindow(QMainWindow):
 
         # Type combo
         self.inst_type_lbl = QLabel(tr("installed_type_label"))
-        self.inst_type_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        self.inst_type_lbl.setStyleSheet("color: #7e8a9f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         inst_layout.addWidget(self.inst_type_lbl)
 
         self.inst_type_combo = QComboBox()
@@ -457,7 +482,7 @@ class MainWindow(QMainWindow):
 
         # Sorting combo
         self.inst_sort_lbl = QLabel(tr("sorting_label"))
-        self.inst_sort_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: bold;")
+        self.inst_sort_lbl.setStyleSheet("color: #7e8a9f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
         inst_layout.addWidget(self.inst_sort_lbl)
 
         self.inst_sort_combo = QComboBox()
@@ -528,14 +553,9 @@ class MainWindow(QMainWindow):
         p_layout.addWidget(self.prev_btn)
 
         self.page_info_lbl = QLabel()
-        self.page_info_lbl.setStyleSheet("""
-            background-color: #1a1e2b;
-            border: 1px solid #282e42;
-            border-radius: 8px;
-            font-weight: bold;
-            color: #f8fafc;
-            padding: 4px 14px;
-        """)
+        self.page_info_lbl.setObjectName("pageBadge")
+        self.page_info_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.page_info_lbl.setMinimumWidth(110)
         p_layout.addWidget(self.page_info_lbl)
 
         self.next_btn = QPushButton()
@@ -554,6 +574,7 @@ class MainWindow(QMainWindow):
         self.page_spin = QSpinBox()
         self.page_spin.setRange(1, 9999)
         self.page_spin.setValue(1)
+        self.page_spin.setFixedWidth(65)
         p_layout.addWidget(self.page_spin)
 
         self.goto_btn = QPushButton()
@@ -712,25 +733,25 @@ class MainWindow(QMainWindow):
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
-        self.tab_wallhaven.setText("🌐 " + tr("tab_wallhaven"))
-        self.tab_moewalls.setText("🎬 " + tr("tab_moewalls"))
-        self.tab_osu.setText("🌸 " + tr("tab_osu"))
-        self.tab_installed.setText("💾 " + tr("tab_installed"))
+        self.tab_wallhaven.setText(tr("tab_wallhaven"))
+        self.tab_moewalls.setText(tr("tab_moewalls"))
+        self.tab_osu.setText(tr("tab_osu"))
+        self.tab_installed.setText(tr("tab_installed"))
 
         if self.current_mode == "osu":
-            self.search_input.setPlaceholderText("🔍 " + tr("osu_search_placeholder"))
+            self.search_input.setPlaceholderText(tr("osu_search_placeholder"))
         elif self.current_mode == "moewalls":
-            self.search_input.setPlaceholderText("🔍 " + tr("moe_search_placeholder"))
+            self.search_input.setPlaceholderText(tr("moe_search_placeholder"))
         elif self.current_mode == "installed":
-            self.search_input.setPlaceholderText("🔍 " + tr("installed_search_placeholder"))
+            self.search_input.setPlaceholderText(tr("installed_search_placeholder"))
         else:
-            self.search_input.setPlaceholderText("🔍 " + tr("search_placeholder"))
+            self.search_input.setPlaceholderText(tr("search_placeholder"))
 
-        self.search_btn.setText("🔍 " + tr("search_button"))
-        self.color_toggle_btn.setText("🎨 " + tr("colors_button"))
-        self.auto_wall_btn.setText("🖼️ " + tr("auto_wallpaper"))
+        self.search_btn.setText(tr("search_button"))
+        self.color_toggle_btn.setText(tr("colors_button"))
+        self.auto_wall_btn.setText(tr("auto_wallpaper"))
         self.auto_wall_btn.setToolTip(tr("auto_wallpaper_tip"))
-        self.settings_btn.setText("⚙️ " + tr("settings_button"))
+        self.settings_btn.setText(tr("settings_button"))
 
         # Wallhaven filter labels
         self.cat_lbl.setText(tr("categories_label"))
@@ -760,11 +781,11 @@ class MainWindow(QMainWindow):
         self._retranslate_installed_combos()
 
         # Pagination
-        self.first_btn.setText("« " + tr("first_page"))
-        self.prev_btn.setText("‹ " + tr("prev_page"))
+        self.first_btn.setText(tr("first_page"))
+        self.prev_btn.setText(tr("prev_page"))
         self.page_info_lbl.setText(tr("page_info", current=self.current_page, last=self.last_page))
-        self.next_btn.setText(tr("next_page") + " ›")
-        self.last_btn.setText(tr("last_page") + " »")
+        self.next_btn.setText(tr("next_page"))
+        self.last_btn.setText(tr("last_page"))
         self.goto_lbl.setText(tr("goto_page"))
         self.goto_btn.setText(tr("goto_btn"))
 

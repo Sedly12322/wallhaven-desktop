@@ -81,16 +81,18 @@ class WallpaperCard(QFrame):
             info_row.addWidget(live_badge)
 
         # Resolution badge (4K Gold, 2K Cyan, Standard)
-        res_text = self.item.resolution
         is_4k = self.item.dimension_x >= 3840
         is_2k = not is_4k and self.item.dimension_x >= 2560
 
         if is_4k:
-            res_text = f"✨ 4K ({self.item.resolution})"
+            res_text = "✨ 4K"
         elif is_2k:
-            res_text = f"⚡ 2K ({self.item.resolution})"
+            res_text = "⚡ 2K"
+        else:
+            res_text = self.item.resolution
 
         self.res_badge = QLabel(res_text)
+        self.res_badge.setToolTip(f"{self.item.resolution} • {self.item.ratio}")
         if is_4k:
             self.res_badge.setStyleSheet("""
                 background-color: rgba(245, 158, 11, 0.18);
