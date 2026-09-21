@@ -8,7 +8,8 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from wallhaven.main_window import MainWindow
-from wallhaven.styles import DARK_STYLESHEET
+from wallhaven.styles import get_stylesheet
+from wallhaven.config import config
 
 
 def get_asset_path(filename: str) -> Path:
@@ -91,8 +92,9 @@ def main():
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 
-    # Apply global stylesheet
-    app.setStyleSheet(DARK_STYLESHEET)
+    # Apply global stylesheet according to saved theme
+    theme_id = config.get("theme", "dark")
+    app.setStyleSheet(get_stylesheet(theme_id))
 
     window = MainWindow()
     if icon_path.exists():

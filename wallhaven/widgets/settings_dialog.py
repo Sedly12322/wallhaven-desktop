@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (
 )
 from wallhaven.config import config
 from wallhaven.cache import CACHE_DIR
+from wallhaven.styles import get_available_themes, get_stylesheet
+from PyQt6.QtWidgets import QApplication
 from wallhaven.wallpaper import (
     detect_wallpaper_command,
     get_available_wallpaper_setters,
@@ -47,14 +49,31 @@ class SettingsDialog(QDialog):
         self.title_lbl.setStyleSheet("font-size: 18px; font-weight: bold; color: #ffffff;")
         layout.addWidget(self.title_lbl)
 
-        # 1. Language Section
-        self.lang_group = QGroupBox(tr("lang_section"))
-        self._apply_group_style(self.lang_group)
-        lang_layout = QHBoxLayout(self.lang_group)
+        # 1. Appearance & Language Section
+        self.theme_group = QGroupBox(tr("theme_section"))
+        self._apply_group_style(self.theme_group)
+        theme_layout = QHBoxLayout(self.theme_group)
+        theme_layout.setSpacing(10)
+
+        self.theme_label = QLabel(tr("theme_label"))
+        self.theme_label.setStyleSheet("color: #cbd5e1; font-size: 12px;")
+        theme_layout.addWidget(self.theme_label)
+
+        self.theme_combo = QComboBox()
+        for tid, tname in get_available_themes():
+            self.theme_combo.addItem(tname, tid)
+        curr_theme = config.get("theme", "dark")
+        t_idx = self.theme_combo.findData(curr_theme)
+        if t_idx >= 0:
+            self.theme_combo.setCurrentIndex(t_idx)
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        theme_layout.addWidget(self.theme_combo)
+
+        theme_layout.addSpacing(20)
 
         self.lang_label = QLabel(tr("lang_label"))
         self.lang_label.setStyleSheet("color: #cbd5e1; font-size: 12px;")
-        lang_layout.addWidget(self.lang_label)
+        theme_layout.addWidget(self.lang_label)
 
         self.lang_combo = QComboBox()
         self.lang_combo.addItem("English", "en")
@@ -63,10 +82,10 @@ class SettingsDialog(QDialog):
         if idx >= 0:
             self.lang_combo.setCurrentIndex(idx)
         self.lang_combo.currentIndexChanged.connect(self._on_language_changed)
-        lang_layout.addWidget(self.lang_combo)
-        lang_layout.addStretch()
+        theme_layout.addWidget(self.lang_combo)
+        theme_layout.addStretch()
 
-        layout.addWidget(self.lang_group)
+        layout.addWidget(self.theme_group)
 
         # 2. API Key Section
         self.api_group = QGroupBox(tr("api_group"))
@@ -247,21 +266,7 @@ class SettingsDialog(QDialog):
         layout.addLayout(btn_row)
 
     def _apply_group_style(self, group: QGroupBox):
-        group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                border: 1px solid #333845;
-                border-radius: 8px;
-                margin-top: 8px;
-                padding-top: 14px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 4px;
-                color: #818cf8;
-            }
-        """)
+        pass
 
     def _on_setter_changed(self):
         setter_id = self.setter_combo.currentData()
@@ -325,6 +330,14 @@ class SettingsDialog(QDialog):
                 f"✗ Nastavení selhalo:\n{msg}",
             )
 
+    def _on_theme_changed(self):
+        theme_id = self.theme_combo.currentData()
+        if theme_id:
+            config.set("theme", theme_id)
+            app = QApplication.instance()
+            if app:
+                app.setStyleSheet(get_stylesheet(theme_id))
+
     def _on_language_changed(self):
         new_lang = self.lang_combo.currentData()
         if new_lang:
@@ -333,7 +346,8 @@ class SettingsDialog(QDialog):
     def retranslate_ui(self):
         self.setWindowTitle(tr("settings_title"))
         self.title_lbl.setText(tr("settings_title"))
-        self.lang_group.setTitle(tr("lang_section"))
+        self.theme_group.setTitle(tr("theme_section"))
+        self.theme_label.setText(tr("theme_label"))
         self.lang_label.setText(tr("lang_label"))
         self.api_group.setTitle(tr("api_group"))
         self.api_desc.setText(tr("api_desc"))
@@ -404,5 +418,6 @@ class SettingsDialog(QDialog):
         config.custom_wallpaper_cmd = self.custom_cmd_input.text().strip()
         config.custom_video_wallpaper_cmd = self.custom_video_input.text().strip()
         config.language = self.lang_combo.currentData()
+        config.set("theme", self.theme_combo.currentData() or "dark")
         config.save()
         self.accept()

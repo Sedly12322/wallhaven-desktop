@@ -192,6 +192,8 @@ TRANSLATIONS = {
 
         # Settings Dialog
         "settings_title": "Settings",
+        "theme_section": "Appearance & Theme",
+        "theme_label": "Color Palette:",
         "lang_section": "Language / Jazyk",
         "lang_label": "Interface language:",
         "api_group": "Wallhaven API Key",
@@ -427,6 +429,8 @@ TRANSLATIONS = {
 
         # Settings Dialog
         "settings_title": "Nastavení",
+        "theme_section": "Vzhled a motiv",
+        "theme_label": "Barevná paleta:",
         "lang_section": "Jazyk rozhraní (Language)",
         "lang_label": "Zvolený jazyk:",
         "api_group": "Wallhaven API Klíč",
