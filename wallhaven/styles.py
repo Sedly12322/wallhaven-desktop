@@ -223,20 +223,20 @@ def _is_light_color(hex_str: str) -> bool:
 
 def is_matugen_available() -> bool:
     """Check if Matugen color outputs or executable are present on the system."""
-    serp_paths = [
+    paths = [
+        Path.home() / ".cache/quickshell/matugen.json",
+        Path.home() / ".cache/sedly-rice/current_wallpaper",
+        Path.home() / ".cache/matugen/vscode-colors.json",
+        Path.home() / ".config/gtk-3.0/colors.css",
+        Path.home() / ".config/gtk-4.0/colors.css",
+        Path.home() / ".config/kdeglobals",
         Path.home() / ".local/state/serpantinum/qs_colors.json",
         Path.home() / ".local/state/serpantinum/qs_matugen_colors.json",
-    ]
-    for p in serp_paths:
-        if p.exists():
-            return True
-
-    std_paths = [
         Path.home() / ".config/matugen/colors.json",
         Path.home() / ".cache/matugen/colors.json",
         Path.home() / ".local/state/matugen/colors.json",
     ]
-    for p in std_paths:
+    for p in paths:
         if p.exists():
             return True
 
@@ -244,6 +244,89 @@ def is_matugen_available() -> bool:
         return True
 
     return False
+
+
+def _parse_flat_matugen_json(data: dict) -> Optional[Dict[str, str]]:
+    """Parse flat Matugen Material 3 JSON (Quickshell / Rice format)."""
+    if not isinstance(data, dict):
+        return None
+
+    primary = data.get("primary")
+    if not primary or not isinstance(primary, str) or not primary.startswith("#"):
+        return None
+
+    bg_base = (
+        data.get("surface_container_lowest")
+        or data.get("surface")
+        or data.get("background")
+        or "#140c0c"
+    )
+    bg_surface = (
+        data.get("surface_container_low")
+        or data.get("surface")
+        or data.get("background")
+        or "#1f1818"
+    )
+    bg_subsurface = data.get("surface") or bg_base
+    bg_capsule = data.get("surface_container_lowest") or bg_base
+    bg_input = (
+        data.get("surface_container")
+        or data.get("surface_variant")
+        or "#271d1d"
+    )
+    bg_input_hover = (
+        data.get("surface_container_high")
+        or data.get("surface_bright")
+        or "#322827"
+    )
+    bg_card_hover = data.get("surface_container_high") or bg_input_hover
+    border = (
+        data.get("outline_variant")
+        or data.get("surface_variant")
+        or "#534342"
+    )
+    border_subtle = (
+        data.get("surface_container_highest")
+        or data.get("outline_variant")
+        or "#3d3231"
+    )
+    accent = primary
+    accent_hover = data.get("surface_tint") or data.get("secondary") or accent
+    accent_surface = data.get("primary_container") or "#733332"
+
+    accent_text = data.get("on_primary")
+    if not accent_text:
+        accent_text = bg_base if _is_light_color(accent) else "#ffffff"
+
+    accent_grad_start = accent
+    accent_grad_end = data.get("secondary") or accent_hover
+
+    text_primary = data.get("on_surface") or "#f0dedd"
+    text_secondary = data.get("on_surface_variant") or "#d8c1c0"
+    text_muted = data.get("outline") or "#a08c8b"
+
+    return {
+        "name": "🪄 Matugen (Systémové barvy)",
+        "bg_base": bg_base,
+        "bg_surface": bg_surface,
+        "bg_subsurface": bg_subsurface,
+        "bg_capsule": bg_capsule,
+        "bg_input": bg_input,
+        "bg_input_hover": bg_input_hover,
+        "bg_card_hover": bg_card_hover,
+        "border": border,
+        "border_subtle": border_subtle,
+        "border_hover": accent,
+        "accent": accent,
+        "accent_hover": accent_hover,
+        "accent_gradient_start": accent_grad_start,
+        "accent_gradient_end": accent_grad_end,
+        "accent_surface": accent_surface,
+        "accent_text": accent_text,
+        "text_primary": text_primary,
+        "text_secondary": text_secondary,
+        "text_muted": text_muted,
+    }
 
 
 def _parse_standard_matugen_json(data: dict) -> Optional[Dict[str, str]]:
@@ -259,10 +342,10 @@ def _parse_standard_matugen_json(data: dict) -> Optional[Dict[str, str]]:
                 return item.get("dark", {}).get("color") or item.get("default", {}).get("color") or fallback
             return fallback
 
-        bg_base = get_c("background", "#0c0e13")
-        bg_surface = get_c("surface_container_lowest", "#111318")
+        bg_base = get_c("surface_container_lowest", get_c("background", "#0c0e13"))
+        bg_surface = get_c("surface_container_low", get_c("surface", "#111318"))
         bg_subsurface = get_c("surface", "#0c0e13")
-        bg_card_hover = get_c("surface_container_low", "#191c20")
+        bg_card_hover = get_c("surface_container_high", "#191c20")
         bg_input = get_c("surface_container", "#1d2024")
         bg_input_hover = get_c("surface_container_high", "#282a2f")
         border = get_c("outline_variant", "#32353a")
@@ -280,7 +363,7 @@ def _parse_standard_matugen_json(data: dict) -> Optional[Dict[str, str]]:
         text_muted = get_c("outline", "#8d9199")
 
         return {
-            "name": "🪄 Matugen (Auto / Material 3)",
+            "name": "🪄 Matugen (Systémové barvy)",
             "bg_base": bg_base,
             "bg_surface": bg_surface,
             "bg_subsurface": bg_subsurface,
@@ -307,6 +390,47 @@ def _parse_standard_matugen_json(data: dict) -> Optional[Dict[str, str]]:
 
 def _detect_current_wallpaper_image() -> Optional[str]:
     """Tries to find current desktop wallpaper image path for Matugen."""
+    # 1. Check direct rice / desktop cache files
+    cache_candidates = [
+        Path.home() / ".cache/sedly-rice/current_wallpaper",
+        Path.home() / ".cache/current_wallpaper",
+        Path.home() / ".cache/wallpaper",
+        Path.home() / ".cache/wal/wal",
+    ]
+    for cp in cache_candidates:
+        if cp.exists():
+            try:
+                p = cp.read_text(encoding="utf-8").strip()
+                if os.path.exists(p) and not p.lower().endswith((".mp4", ".webm", ".mkv")):
+                    return p
+            except Exception:
+                pass
+
+    # 2. awww query
+    if shutil.which("awww"):
+        try:
+            res = subprocess.run(["awww", "query"], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout:
+                import re
+                m = re.search(r"image:\s*([^\s\n\r]+)", res.stdout)
+                if m and os.path.exists(m.group(1)) and not m.group(1).lower().endswith((".mp4", ".webm", ".mkv")):
+                    return m.group(1)
+        except Exception:
+            pass
+
+    # 3. swww query
+    if shutil.which("swww"):
+        try:
+            res = subprocess.run(["swww", "query"], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout:
+                import re
+                m = re.search(r"image:\s*([^\s\n\r]+)", res.stdout)
+                if m and os.path.exists(m.group(1)) and not m.group(1).lower().endswith((".mp4", ".webm", ".mkv")):
+                    return m.group(1)
+        except Exception:
+            pass
+
+    # 4. Quickshell IPC
     if shutil.which("qs"):
         try:
             res = subprocess.run(
@@ -322,6 +446,7 @@ def _detect_current_wallpaper_image() -> Optional[str]:
         except Exception:
             pass
 
+    # 5. Hyprland hyprpaper
     if shutil.which("hyprctl"):
         try:
             res = subprocess.run(["hyprctl", "hyprpaper", "listactive"], capture_output=True, text=True, timeout=2)
@@ -334,15 +459,46 @@ def _detect_current_wallpaper_image() -> Optional[str]:
         except Exception:
             pass
 
+    # 6. GNOME / Cinnamon gsettings
+    if shutil.which("gsettings"):
+        try:
+            res = subprocess.run(
+                ["gsettings", "get", "org.gnome.desktop.background", "picture-uri"],
+                capture_output=True,
+                text=True,
+                timeout=1,
+            )
+            if res.returncode == 0 and res.stdout:
+                p = res.stdout.strip().strip("'").strip('"').replace("file://", "")
+                if os.path.exists(p):
+                    return p
+        except Exception:
+            pass
+
     return None
 
 
 def _get_matugen_palette() -> Optional[Dict[str, str]]:
-    """Load dynamic Material You color scheme generated by Matugen / Serpantinum."""
-    # 1. Check Serpantinum state files
+    """Load dynamic Material You color scheme generated by Matugen / Desktop profile."""
+    # 1. Check Quickshell / Serpantinum / Rice flat Matugen schema
+    flat_paths = [
+        Path.home() / ".cache/quickshell/matugen.json",
+        Path.home() / ".local/state/serpantinum/qs_matugen_colors.json",
+    ]
+    for fp in flat_paths:
+        if fp.exists():
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                pal = _parse_flat_matugen_json(data)
+                if pal:
+                    return pal
+            except Exception:
+                pass
+
+    # 2. Check Serpantinum Catppuccin-style state files
     serp_paths = [
         Path.home() / ".local/state/serpantinum/qs_colors.json",
-        Path.home() / ".local/state/serpantinum/qs_matugen_colors.json",
     ]
     for sp in serp_paths:
         if sp.exists():
@@ -367,7 +523,7 @@ def _get_matugen_palette() -> Optional[Dict[str, str]]:
                     accent_text = bg_base if _is_light_color(accent) else "#ffffff"
 
                     return {
-                        "name": "🪄 Matugen (Auto / Tapeta)",
+                        "name": "🪄 Matugen (Systémové barvy)",
                         "bg_base": bg_base,
                         "bg_surface": bg_surface,
                         "bg_subsurface": bg_surface,
@@ -391,7 +547,7 @@ def _get_matugen_palette() -> Optional[Dict[str, str]]:
             except Exception:
                 pass
 
-    # 2. Check standard Matugen config / cache files
+    # 3. Check standard Matugen config / cache files
     std_matugen_paths = [
         Path.home() / ".config/matugen/colors.json",
         Path.home() / ".cache/matugen/colors.json",
@@ -408,17 +564,17 @@ def _get_matugen_palette() -> Optional[Dict[str, str]]:
             except Exception:
                 pass
 
-    # 3. Direct matugen invocation if binary exists and wallpaper image is found
+    # 4. Direct matugen invocation if binary exists and wallpaper image is found
     matugen_bin = shutil.which("matugen") or ("/usr/bin/matugen" if os.path.exists("/usr/bin/matugen") else None)
     if matugen_bin:
         wp_candidate = _detect_current_wallpaper_image()
         if wp_candidate and os.path.exists(wp_candidate):
             try:
                 res = subprocess.run(
-                    [matugen_bin, "image", wp_candidate, "--dry-run", "-j", "hex", "--source-color-index", "0"],
+                    [matugen_bin, "image", wp_candidate, "-m", "dark", "--source-color-index", "0", "--dry-run", "-j", "hex"],
                     capture_output=True,
                     text=True,
-                    timeout=3,
+                    timeout=4,
                 )
                 if res.returncode == 0 and res.stdout:
                     data = json.loads(res.stdout)
@@ -428,6 +584,97 @@ def _get_matugen_palette() -> Optional[Dict[str, str]]:
             except Exception:
                 pass
 
+    return None
+
+
+def _get_gtk_palette() -> Optional[Dict[str, str]]:
+    """Parse GTK 3/4 colors.css generated by Matugen or desktop theme."""
+    gtk_paths = [
+        Path.home() / ".config/gtk-3.0/colors.css",
+        Path.home() / ".config/gtk-4.0/colors.css",
+    ]
+    for gp in gtk_paths:
+        if gp.exists():
+            try:
+                import re
+                content = gp.read_text(encoding="utf-8")
+                colors = dict(re.findall(r"@define-color\s+([\w-]+)\s+(#[0-9a-fA-F]{6});", content))
+                if "accent_color" in colors and "window_bg_color" in colors:
+                    accent = colors["accent_color"]
+                    bg = colors["window_bg_color"]
+                    fg = colors.get("window_fg_color", "#f0dedd")
+                    header_bg = colors.get("headerbar_bg_color", bg)
+                    card_bg = colors.get("card_bg_color", bg)
+                    accent_fg = colors.get("accent_fg_color") or (bg if _is_light_color(accent) else "#ffffff")
+                    return {
+                        "name": "🐧 GTK (Systémové téma)",
+                        "bg_base": bg,
+                        "bg_surface": header_bg,
+                        "bg_subsurface": bg,
+                        "bg_capsule": bg,
+                        "bg_input": card_bg,
+                        "bg_input_hover": card_bg,
+                        "bg_card_hover": card_bg,
+                        "border": colors.get("sidebar_border_color", "#333333"),
+                        "border_subtle": "#282828",
+                        "border_hover": accent,
+                        "accent": accent,
+                        "accent_hover": accent,
+                        "accent_gradient_start": accent,
+                        "accent_gradient_end": accent,
+                        "accent_surface": colors.get("accent_bg_color", accent),
+                        "accent_text": accent_fg,
+                        "text_primary": fg,
+                        "text_secondary": fg,
+                        "text_muted": "#888888",
+                    }
+            except Exception:
+                pass
+    return None
+
+
+def _get_kde_palette() -> Optional[Dict[str, str]]:
+    """Parse KDE Plasma kdeglobals color scheme."""
+    kde_path = Path.home() / ".config/kdeglobals"
+    if not kde_path.exists():
+        return None
+    try:
+        import configparser
+        cp = configparser.ConfigParser()
+        cp.read(kde_path)
+        if cp.has_section("Colors:Window") and cp.has_section("Colors:Selection"):
+            win = cp["Colors:Window"]
+            sel = cp["Colors:Selection"]
+            btn = cp["Colors:Button"] if cp.has_section("Colors:Button") else win
+            bg_base = win.get("backgroundnormal", "#1e2022")
+            fg_base = win.get("foregroundnormal", "#e2e2e5")
+            accent = sel.get("backgroundnormal", "#3584e4")
+            accent_text = sel.get("foregroundnormal", "#ffffff")
+            btn_bg = btn.get("backgroundnormal", "#26282b")
+            return {
+                "name": "❄️ KDE Plasma (Systémové barvy)",
+                "bg_base": bg_base,
+                "bg_surface": btn_bg,
+                "bg_subsurface": bg_base,
+                "bg_capsule": bg_base,
+                "bg_input": btn_bg,
+                "bg_input_hover": btn.get("backgroundalternate", "#35393f"),
+                "bg_card_hover": btn_bg,
+                "border": win.get("decorationfocus", "#444444"),
+                "border_subtle": "#333333",
+                "border_hover": accent,
+                "accent": accent,
+                "accent_hover": sel.get("decorationhover", accent),
+                "accent_gradient_start": accent,
+                "accent_gradient_end": accent,
+                "accent_surface": btn_bg,
+                "accent_text": accent_text,
+                "text_primary": fg_base,
+                "text_secondary": win.get("foregroundinactive", "#8c9198"),
+                "text_muted": win.get("foregroundinactive", "#666666"),
+            }
+    except Exception:
+        pass
     return None
 
 
@@ -474,7 +721,7 @@ def _get_pywal_palette() -> Optional[Dict[str, str]]:
         accent = c.get("color4", "#6366f1")
         accent_alt = c.get("color5", "#818cf8")
         return {
-            "name": "🎨 Pywal (System Wallpaper)",
+            "name": "🎨 Pywal (Systémové barvy tapety)",
             "bg_base": bg,
             "bg_surface": c.get("color0", "#181818"),
             "bg_subsurface": bg,
@@ -503,19 +750,14 @@ def get_available_themes() -> List[Tuple[str, str]]:
     """Return list of (theme_id, display_name) for theme selection."""
     themes = []
 
-    # 1. Matugen dynamic Material You theme (first if available on Linux)
-    if is_matugen_available():
-        themes.append(("matugen", "🪄 Matugen (Auto / Systémové barvy)"))
+    # 1. Matugen / System dynamic colors (first if available on Linux)
+    if is_matugen_available() or _detect_linux_system_accent() or _get_gtk_palette() or _get_kde_palette():
+        themes.append(("matugen", "🪄 Systémové barvy (Matugen / Auto)"))
 
     # 2. Curated theme palettes
     themes.extend([(k, v["name"]) for k, v in THEME_PALETTES.items()])
 
-    # 3. Linux system accent (GNOME/GTK)
-    sys_accent = _detect_linux_system_accent()
-    if sys_accent:
-        themes.append(("system", "🐧 Linux Desktop Accent"))
-
-    # 4. Pywal colors
+    # 3. Pywal colors
     if (Path.home() / ".cache" / "wal" / "colors.json").exists():
         themes.append(("pywal", "🎨 Pywal (Wallpaper Colors)"))
 
@@ -524,27 +766,30 @@ def get_available_themes() -> List[Tuple[str, str]]:
 
 def get_palette(theme_id: str = "dark") -> Dict[str, str]:
     """Retrieve color palette dictionary for given theme ID."""
-    if theme_id in ("matugen", "auto"):
+    if theme_id in ("matugen", "auto", "system"):
         pal = _get_matugen_palette()
         if pal:
             return pal
+        gtk_pal = _get_gtk_palette()
+        if gtk_pal:
+            return gtk_pal
+        kde_pal = _get_kde_palette()
+        if kde_pal:
+            return kde_pal
+        wal_pal = _get_pywal_palette()
+        if wal_pal:
+            return wal_pal
+        sys_accent = _detect_linux_system_accent()
+        if sys_accent:
+            base = dict(THEME_PALETTES["dark"])
+            base["name"] = "🐧 Systémové barvy (Accent)"
+            base["accent"] = sys_accent
+            base["accent_hover"] = sys_accent
+            base["accent_gradient_start"] = sys_accent
+            base["accent_gradient_end"] = sys_accent
+            base["accent_surface"] = "#1e2a3a"
+            return base
         theme_id = "dark"
-
-    if theme_id == "system":
-        # Prefer Matugen if available on user's desktop
-        if is_matugen_available():
-            pal = _get_matugen_palette()
-            if pal:
-                return pal
-        sys_accent = _detect_linux_system_accent() or "#3584e4"
-        base = dict(THEME_PALETTES["dark"])
-        base["name"] = "🐧 Linux System Accent"
-        base["accent"] = sys_accent
-        base["accent_hover"] = sys_accent
-        base["accent_gradient_start"] = sys_accent
-        base["accent_gradient_end"] = sys_accent
-        base["accent_surface"] = "#1e2a3a"
-        return base
 
     if theme_id == "pywal":
         wal_pal = _get_pywal_palette()
@@ -989,6 +1234,50 @@ QDialog {
     color: %(text_primary)s;
 }
 
+QFrame#previewContainer {
+    background-color: %(bg_capsule)s;
+    border: 1px solid %(border_subtle)s;
+    border-radius: 12px;
+}
+
+QWidget#detailSidebar {
+    background-color: %(bg_surface)s;
+    border: 1px solid %(border_subtle)s;
+    border-radius: 12px;
+}
+
+QPushButton#setWallNowBtn {
+    background-color: %(accent_surface)s;
+    color: %(accent_text)s;
+    border: 1.5px solid %(accent)s;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 6px 12px;
+}
+
+QPushButton#setWallNowBtn:hover {
+    background-color: %(accent)s;
+    border-color: %(accent_hover)s;
+    color: %(accent_text)s;
+}
+
+QPushButton#sidebarSecondaryBtn {
+    background-color: %(bg_input)s;
+    color: %(text_primary)s;
+    border: 1.5px solid %(border)s;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 6px 12px;
+}
+
+QPushButton#sidebarSecondaryBtn:hover {
+    background-color: %(bg_input_hover)s;
+    border-color: %(border_hover)s;
+    color: %(text_primary)s;
+}
+
 QGroupBox {
     border: 1px solid %(border)s;
     border-radius: 10px;
@@ -1035,12 +1324,24 @@ class ThemeWatcher(QObject):
         self._debounce_timer.timeout.connect(self._on_reload_timeout)
 
         self._watch_targets = [
+            Path.home() / ".cache/quickshell/matugen.json",
+            Path.home() / ".cache/quickshell",
+            Path.home() / ".cache/sedly-rice/current_wallpaper",
+            Path.home() / ".cache/sedly-rice",
+            Path.home() / ".config/gtk-3.0/colors.css",
+            Path.home() / ".config/gtk-3.0",
+            Path.home() / ".config/gtk-4.0/colors.css",
+            Path.home() / ".config/kdeglobals",
+            Path.home() / ".cache/matugen/vscode-colors.json",
+            Path.home() / ".cache/matugen",
+            Path.home() / ".config/matugen/colors.json",
+            Path.home() / ".cache/matugen/colors.json",
+            Path.home() / ".local/state/matugen/colors.json",
             Path.home() / ".local/state/serpantinum/qs_colors.json",
             Path.home() / ".local/state/serpantinum/qs_matugen_colors.json",
             Path.home() / ".local/state/serpantinum",
-            Path.home() / ".config/matugen/colors.json",
-            Path.home() / ".cache/matugen/colors.json",
             Path.home() / ".cache/wal/colors.json",
+            Path.home() / ".cache/wal",
         ]
         self._setup_watchers()
 

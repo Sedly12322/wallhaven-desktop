@@ -46,6 +46,29 @@ def get_available_wallpaper_setters() -> list[dict]:
     """
     setters = []
 
+    # 0. Hyprland Rice Script (set-wallpaper.sh)
+    hypr_script = Path.home() / ".config/hypr/scripts/set-wallpaper.sh"
+    has_hypr_script = hypr_script.exists() and os.access(hypr_script, os.X_OK)
+    setters.append({
+        "id": "hyprland_script",
+        "name": "Hyprland Rice (set-wallpaper.sh)",
+        "available": has_hypr_script,
+        "supports_video": False,
+        "description": "Nativní skript profilu s automatickým Matugen & Quickshell přebarvením",
+        "default_cmd": f"bash {hypr_script} '{{file}}'",
+    })
+
+    # 0b. awww (Modern Wayland wallpaper daemon)
+    has_awww = shutil.which("awww") is not None
+    setters.append({
+        "id": "awww",
+        "name": "awww (Wayland)",
+        "available": has_awww,
+        "supports_video": False,
+        "description": "Moderní Wayland wallpaper démon s animovanými přechody",
+        "default_cmd": "awww img '{file}' --transition-type fade --transition-duration 1",
+    })
+
     # 1. Quickshell (Serpantinum / Hyprland / Wayland)
     qs_entry = find_quickshell_entry()
     qs_script = Path.home() / ".config/quickshell/ii/scripts/colors/switchwall.sh"
@@ -240,6 +263,15 @@ def detect_wallpaper_command(for_video: bool = False) -> list[str]:
         return []
 
     # Static wallpaper detection
+    # 0. Hyprland Rice Script (set-wallpaper.sh)
+    hypr_script = Path.home() / ".config/hypr/scripts/set-wallpaper.sh"
+    if hypr_script.exists() and os.access(hypr_script, os.X_OK):
+        return ["bash", str(hypr_script), "{file}"]
+
+    # 0b. awww (Modern Wayland wallpaper daemon)
+    if shutil.which("awww"):
+        return ["awww", "img", "{file}", "--transition-type", "fade", "--transition-duration", "1"]
+
     # 1. Quickshell
     if shutil.which("qs") and qs_entry:
         return ["qs", "ipc", "-p", qs_entry, "call", "wallpaper", "setWallpaper", "all", "{file}", "fade"]
@@ -300,11 +332,15 @@ def trigger_matugen_refresh(abs_path: str):
         return
 
     matugen_bin = shutil.which("matugen") or ("/usr/bin/matugen" if os.path.exists("/usr/bin/matugen") else None)
-    serp_dir = Path.home() / ".local/share/serpantinum"
-    has_serp = serp_dir.exists()
 
-    if not matugen_bin and not has_serp:
-        return
+    # Save active wallpaper to user cache so rice / widgets can read it
+    try:
+        rice_cache = Path.home() / ".cache/sedly-rice"
+        rice_cache.mkdir(parents=True, exist_ok=True)
+        (rice_cache / "current_wallpaper").write_text(abs_path, encoding="utf-8")
+        (Path.home() / ".cache/current_wallpaper").write_text(abs_path, encoding="utf-8")
+    except Exception:
+        pass
 
     try:
         target_img = abs_path
@@ -325,42 +361,50 @@ def trigger_matugen_refresh(abs_path: str):
             else:
                 return
 
-        # 1. Quickshell IPC call if Quickshell is running
-        qs_entry = find_quickshell_entry()
-        if shutil.which("qs"):
-            cmd = ["qs", "ipc"]
-            if qs_entry:
-                cmd.extend(["-p", qs_entry])
-            cmd.extend(["call", "matugen", "generateImage", target_img])
+        # 1. Matugen CLI invocation (with config if found, otherwise generic)
+        user_cfg = Path.home() / ".config/matugen/config.toml"
+        serp_cfg = Path.home() / ".local/share/serpantinum/src/assets/matugen/config.toml"
+        cfg_to_use = user_cfg if user_cfg.exists() else (serp_cfg if serp_cfg.exists() else None)
+
+        if matugen_bin:
+            cmd = [matugen_bin]
+            if cfg_to_use:
+                cmd.extend(["-c", str(cfg_to_use)])
+            cmd.extend(["image", target_img, "-m", "dark", "--source-color-index", "0"])
             subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # 2. Matugen CLI with Serpantinum config
-        serp_cfg = serp_dir / "src/assets/matugen/config.toml"
-        if matugen_bin and serp_cfg.exists():
-            subprocess.Popen(
-                [matugen_bin, "-c", str(serp_cfg), "image", target_img, "--source-color-index", "0"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        elif matugen_bin:
-            # Generic matugen
-            subprocess.Popen(
-                [matugen_bin, "image", target_img, "--source-color-index", "0"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
-        # 3. Trigger reload script and quickshell reloadColors
-        reload_sh = serp_dir / "src/scripts/wallpaper/matugen_reload.sh"
-        if reload_sh.exists():
-            subprocess.Popen(["bash", str(reload_sh)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
+        # 2. Quickshell IPC calls
+        qs_entry = find_quickshell_entry()
         if shutil.which("qs"):
+            # Sedly-Rice reload
             cmd_reload = ["qs", "ipc"]
             if qs_entry:
                 cmd_reload.extend(["-p", qs_entry])
-            cmd_reload.extend(["call", "theme", "reloadColors"])
+            cmd_reload.extend(["call", "theme", "reload"])
             subprocess.Popen(cmd_reload, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Serpantinum reloadColors
+            cmd_colors = ["qs", "ipc"]
+            if qs_entry:
+                cmd_colors.extend(["-p", qs_entry])
+            cmd_colors.extend(["call", "theme", "reloadColors"])
+            subprocess.Popen(cmd_colors, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Matugen IPC if defined
+            cmd_mat = ["qs", "ipc"]
+            if qs_entry:
+                cmd_mat.extend(["-p", qs_entry])
+            cmd_mat.extend(["call", "matugen", "generateImage", target_img])
+            subprocess.Popen(cmd_mat, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # 3. Trigger reload script if present
+        reload_sh = Path.home() / ".local/share/serpantinum/src/scripts/wallpaper/matugen_reload.sh"
+        if reload_sh.exists():
+            subprocess.Popen(["bash", str(reload_sh)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # 4. Reload Hyprland if active
+        if shutil.which("hyprctl"):
+            subprocess.Popen(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     except Exception as e:
         print(f"[Matugen] Trigger error: {e}")

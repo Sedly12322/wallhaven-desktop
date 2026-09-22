@@ -1,6 +1,6 @@
 ; Inno Setup Script for Wallhaven Desktop
 #define MyAppName "Wallhaven Desktop"
-#define MyAppVersion "1.4.1"
+#define MyAppVersion "1.4.2"
 #define MyAppPublisher "Sedly12322"
 #define MyAppURL "https://github.com/Sedly12322/wallhaven-desktop"
 #define MyAppExeName "Wallhaven-Desktop.exe"

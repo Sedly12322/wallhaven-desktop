@@ -184,22 +184,8 @@ class SettingsDialog(QDialog):
 
         # Test wallpaper setter button
         self.test_wall_btn = QPushButton(tr("test_setter_btn"))
+        self.test_wall_btn.setObjectName("headerToolBtn")
         self.test_wall_btn.setToolTip("Vyzkoušet nastavení tapety na ploše")
-        self.test_wall_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #312e81;
-                color: #e0e7ff;
-                border: 1px solid #4f46e5;
-                border-radius: 6px;
-                padding: 4px 10px;
-                font-size: 11px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #3730a3;
-                border-color: #6366f1;
-            }
-        """)
         self.test_wall_btn.clicked.connect(self._on_test_wallpaper)
         method_row.addWidget(self.test_wall_btn)
 

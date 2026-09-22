@@ -129,14 +129,13 @@ class DetailDialog(QDialog):
         i18n.language_changed.connect(self.retranslate_ui)
 
     def _init_ui(self):
-        self.setStyleSheet("QDialog { background-color: #0d1017; color: #f1f5f9; }")
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(16)
 
         # Left: Large Preview Container with StackedWidget (Index 0: Image, Index 1: Video)
         preview_container = QFrame()
-        preview_container.setStyleSheet("background-color: #07090d; border: 1px solid #1a1f2c; border-radius: 12px;")
+        preview_container.setObjectName("previewContainer")
         preview_layout = QVBoxLayout(preview_container)
         preview_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -240,7 +239,7 @@ class DetailDialog(QDialog):
         """)
 
         sidebar = QWidget()
-        sidebar.setStyleSheet("background-color: #10141d; border: 1px solid #1c2230; border-radius: 12px;")
+        sidebar.setObjectName("detailSidebar")
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setSpacing(12)
         sidebar_layout.setContentsMargins(12, 12, 12, 12)
@@ -360,51 +359,18 @@ class DetailDialog(QDialog):
 
         # The two post-download action buttons
         self.set_wall_now_btn = QPushButton(tr("set_wall_now_button"))
+        self.set_wall_now_btn.setObjectName("setWallNowBtn")
         self.set_wall_now_btn.setFixedHeight(36)
         self.set_wall_now_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.set_wall_now_btn.setVisible(False)
-        self.set_wall_now_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1e1b4b;
-                color: #c7d2fe;
-                border: 1px solid #4f46e5;
-                border-radius: 8px;
-                font-weight: 600;
-                font-size: 12px;
-                padding: 6px 12px;
-            }
-            QPushButton:hover {
-                background-color: #312e81;
-                border-color: #6366f1;
-                color: #ffffff;
-            }
-            QPushButton:pressed {
-                background-color: #1e1b4b;
-            }
-        """)
         self.set_wall_now_btn.clicked.connect(self._on_set_wall_now)
         dl_layout.addWidget(self.set_wall_now_btn)
 
         self.open_folder_btn = QPushButton(tr("open_folder_button"))
+        self.open_folder_btn.setObjectName("sidebarSecondaryBtn")
         self.open_folder_btn.setFixedHeight(36)
         self.open_folder_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.open_folder_btn.setVisible(False)
-        self.open_folder_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #191f2d;
-                color: #e2e8f0;
-                border: 1px solid #2c364c;
-                border-radius: 8px;
-                font-weight: 600;
-                font-size: 12px;
-                padding: 6px 12px;
-            }
-            QPushButton:hover {
-                background-color: #252e42;
-                border-color: #3b82f6;
-                color: #ffffff;
-            }
-        """)
         self.open_folder_btn.clicked.connect(self._on_open_folder)
         dl_layout.addWidget(self.open_folder_btn)
 
